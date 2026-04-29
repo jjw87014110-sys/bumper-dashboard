@@ -27,56 +27,190 @@ async function loadTab(tab: string, no: number) {
 
 function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)' }
+  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' }
 
   if (rows.length === 0)
     return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
 
-  if (tab === '알람') return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['일자','펀칭불량','융착불량','합계','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i) => (
-        <tr key={i}>
-          <td style={td}>{r.date}</td>
-          <td style={td}><span className={`badge ${r.punch_alarm>0?'badge-blue':'badge-gray'}`}>{r.punch_alarm}</span></td>
-          <td style={td}><span className={`badge ${r.weld_alarm>0?'badge-red':'badge-gray'}`}>{r.weld_alarm}</span></td>
-          <td style={td}><span className={`badge ${(r.punch_alarm+r.weld_alarm)>0?'badge-amber':'badge-green'}`}>{r.punch_alarm+r.weld_alarm}</span></td>
-          <td style={td}>{r.note||'-'}</td>
-        </tr>
-      ))}</tbody>
-    </table>
-  )
+  if (tab === '알람') {
+    const holders = [...new Set(rows.map((r: any) => r.holder_no).filter(Boolean))].sort((a: any, b: any) => String(a).localeCompare(String(b)))
+    const dates = [...new Set(rows.map((r: any) => r.date))].sort((a: any, b: any) => b.localeCompare(a))
+    const hasHolder = holders.length > 1
+
+    if (hasHolder) {
+      return (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={th} rowSpan={2}>일자</th>
+                {holders.map((h: any) => (
+                  <th key={h} style={{ ...th, textAlign: 'center' }} colSpan={2}>홀더 {h}</th>
+                ))}
+                <th style={th} rowSpan={2}>비고</th>
+              </tr>
+              <tr>
+                {holders.map((h: any) => (
+                  <>
+                    <th key={h + 'p'} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center' }}>펀칭</th>
+                    <th key={h + 'w'} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>
+                  </>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dates.map((date: any) => {
+                const dayRows = rows.filter((r: any) => r.date === date)
+                const note = dayRows.find((r: any) => r.note && r.note !== '-')?.note || '-'
+                return (
+                  <tr key={date}>
+                    <td style={td}>{date}</td>
+                    {holders.map((h: any) => {
+                      const hr = dayRows.find((r: any) => r.holder_no === h)
+                      return (
+                        <>
+                          <td key={h + 'p'} style={{ ...td, textAlign: 'center' }}>
+                            <span className={`badge ${(hr?.punch_alarm || 0) > 0 ? 'badge-blue' : 'badge-gray'}`}>{hr?.punch_alarm || 0}</span>
+                          </td>
+                          <td key={h + 'w'} style={{ ...td, textAlign: 'center' }}>
+                            <span className={`badge ${(hr?.weld_alarm || 0) > 0 ? 'badge-red' : 'badge-gray'}`}>{hr?.weld_alarm || 0}</span>
+                          </td>
+                        </>
+                      )
+                    })}
+                    <td style={td}>{note}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>{['일자', '펀칭불량', '융착불량', '합계', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r: any, i: number) => (
+          <tr key={i}>
+            <td style={td}>{r.date}</td>
+            <td style={td}><span className={`badge ${r.punch_alarm > 0 ? 'badge-blue' : 'badge-gray'}`}>{r.punch_alarm}</span></td>
+            <td style={td}><span className={`badge ${r.weld_alarm > 0 ? 'badge-red' : 'badge-gray'}`}>{r.weld_alarm}</span></td>
+            <td style={td}><span className={`badge ${(r.punch_alarm + r.weld_alarm) > 0 ? 'badge-amber' : 'badge-green'}`}>{r.punch_alarm + r.weld_alarm}</span></td>
+            <td style={td}>{r.note || '-'}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    )
+  }
+
+  if (tab === '조건표') {
+    const holders = [...new Set(rows.map((r: any) => r.holder_no).filter(Boolean))].sort((a: any, b: any) => String(a).localeCompare(String(b)))
+    const dates = [...new Set(rows.map((r: any) => r.change_date))].sort((a: any, b: any) => b.localeCompare(a))
+    const hasHolder = holders.length > 1
+
+    if (hasHolder) {
+      // 날짜별, 구분+모드+단위 기준으로 행 구성
+      type RowKey = string
+      const rowKeys: RowKey[] = []
+      const rowKeySet = new Set<RowKey>()
+      rows.forEach((r: any) => {
+        const key = `${r.change_date}__${r.category}__${r.mode}__${r.unit}`
+        if (!rowKeySet.has(key)) { rowKeySet.add(key); rowKeys.push(key) }
+      })
+
+      return (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={th}>변경일자</th>
+                <th style={th}>구분</th>
+                <th style={th}>모드</th>
+                <th style={th}>단위</th>
+                {holders.map((h: any) => (
+                  <th key={h} style={{ ...th, textAlign: 'center' }}>홀더 {h}</th>
+                ))}
+                <th style={th}>비고</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rowKeys.map((key) => {
+                const [date, category, mode, unit] = key.split('__')
+                const keyRows = rows.filter((r: any) =>
+                  r.change_date === date && r.category === category && r.mode === mode && r.unit === unit
+                )
+                return (
+                  <tr key={key}>
+                    <td style={td}>{date?.slice(0, 10)}</td>
+                    <td style={td}>{category}</td>
+                    <td style={td}>{mode}</td>
+                    <td style={td}>{unit}</td>
+                    {holders.map((h: any) => {
+                      const hr = keyRows.find((r: any) => r.holder_no === h)
+                      return (
+                        <td key={h} style={{ ...td, textAlign: 'center' }}>
+                          {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                        </td>
+                      )
+                    })}
+                    <td style={td}>{keyRows.find((r: any) => r.note)?.note || '-'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r: any, i: number) => (
+          <tr key={i}>
+            <td style={td}>{(r.change_date || '').slice(0, 10)}</td>
+            <td style={td}>{r.category}</td>
+            <td style={td}>{r.mode}</td>
+            <td style={td}>{r.unit}</td>
+            <td style={td}><span className="badge badge-blue">{r.value}</span></td>
+            <td style={td}>{r.note || '-'}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    )
+  }
 
   if (tab === '찍힘') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i) => (
+      <thead><tr>{['일자', '오전/오후', '차종', '구분', '찍힘부위', '지그상태', '설비문제', '조치', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
           <td style={td}>{r.date}</td>
           <td style={td}>{r.time_of_day}</td>
           <td style={td}><span className="badge badge-gray">{r.model}</span></td>
           <td style={td}>{r.category}</td>
           <td style={td}>{r.scratch_location}</td>
-          <td style={td}><span className={`badge ${r.jig_status==='양호'?'badge-green':'badge-red'}`}>{r.jig_status}</span></td>
-          <td style={td}><span className={`badge ${r.equipment_issue==='해당없음'?'badge-gray':'badge-amber'}`}>{r.equipment_issue}</span></td>
-          <td style={td}>{r.action||'-'}</td>
-          <td style={td}>{r.note||'-'}</td>
+          <td style={td}><span className={`badge ${r.jig_status === '양호' ? 'badge-green' : 'badge-red'}`}>{r.jig_status}</span></td>
+          <td style={td}><span className={`badge ${r.equipment_issue === '해당없음' ? 'badge-gray' : 'badge-amber'}`}>{r.equipment_issue}</span></td>
+          <td style={td}>{r.action || '-'}</td>
+          <td style={td}>{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
   )
 
-  if (tab === '아이마킹' || tab === '조건표') return (
+  if (tab === '아이마킹') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['변경일자','구분','모드','단위','값','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i) => (
+      <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{(r.change_date||'').slice(0,10)}</td>
+          <td style={td}>{(r.change_date || '').slice(0, 10)}</td>
           <td style={td}>{r.category}</td>
           <td style={td}>{r.mode}</td>
           <td style={td}>{r.unit}</td>
           <td style={td}><span className="badge badge-blue">{r.value}</span></td>
-          <td style={td}>{r.note||'-'}</td>
+          <td style={td}>{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -84,17 +218,17 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
 
   if (tab === '정비이력') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['정비일시','주/야','작업자','알람내용','불량유형','조치내역','교체부품','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i) => (
+      <thead><tr>{['정비일시', '주/야', '작업자', '알람내용', '불량유형', '조치내역', '교체부품', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{String(r.maintenance_date||'').slice(0,16)}</td>
-          <td style={td}><span className={`badge ${r.shift==='주간'?'badge-amber':'badge-blue'}`}>{r.shift}</span></td>
+          <td style={td}>{String(r.maintenance_date || '').slice(0, 16)}</td>
+          <td style={td}><span className={`badge ${r.shift === '주간' ? 'badge-amber' : 'badge-blue'}`}>{r.shift}</span></td>
           <td style={td}>{r.worker}</td>
-          <td style={td}>{r.alarm_content||'-'}</td>
-          <td style={td}>{r.defect_type||'-'}</td>
-          <td style={td}>{r.action_detail||'-'}</td>
-          <td style={td}>{r.replaced_parts||'-'}</td>
-          <td style={td}>{r.note||'-'}</td>
+          <td style={td}>{r.alarm_content || '-'}</td>
+          <td style={td}>{r.defect_type || '-'}</td>
+          <td style={td}>{r.action_detail || '-'}</td>
+          <td style={td}>{r.replaced_parts || '-'}</td>
+          <td style={td}>{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -102,16 +236,16 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
 
   if (tab === '자재') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i) => (
+      <thead><tr>{['No', '품목명', '규격', 'MAKER', '단위', '수량', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
           <td style={td}>{r.item_no}</td>
           <td style={td}>{r.item_name}</td>
-          <td style={td}>{r.spec||'-'}</td>
-          <td style={td}>{r.maker||'-'}</td>
+          <td style={td}>{r.spec || '-'}</td>
+          <td style={td}>{r.maker || '-'}</td>
           <td style={td}>{r.unit}</td>
           <td style={td}><span className="badge badge-teal">{r.quantity}</span></td>
-          <td style={td}>{r.note||'-'}</td>
+          <td style={td}>{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -157,9 +291,9 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
         onMouseEnter={e => { if (!open) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
         onMouseLeave={e => { if (!open) (e.currentTarget as HTMLElement).style.background = '' }}
       >
-        <td className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 12px' }}>{String(r.no).padStart(2,'0')}</td>
-        <td style={{ padding: '10px 12px' }}><span className={`badge ${typeColors[r.type]||'badge-gray'}`}>{r.type}</span></td>
-        <td style={{ padding: '10px 12px' }}><span className={`badge ${rrColors[r.rr_frt]||'badge-gray'}`}>{r.rr_frt}</span></td>
+        <td className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 12px' }}>{String(r.no).padStart(2, '0')}</td>
+        <td style={{ padding: '10px 12px' }}><span className={`badge ${typeColors[r.type] || 'badge-gray'}`}>{r.type}</span></td>
+        <td style={{ padding: '10px 12px' }}><span className={`badge ${rrColors[r.rr_frt] || 'badge-gray'}`}>{r.rr_frt}</span></td>
         <td style={{ padding: '10px 12px' }}>
           <span className="badge badge-gray">{r.model}</span>
           {isSP2 && <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>단산</span>}
@@ -188,7 +322,7 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
                 ))}
                 {isSP2 && <div style={{ marginLeft: 'auto', padding: '10px 16px', fontSize: 11, color: 'var(--text-muted)' }}>※ SP2 단산 — 이력 조회만 가능</div>}
               </div>
-              <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
+              <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
                 {tabLoading
                   ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
                   : <TabTable tab={activeTab} rows={tabData} />}
@@ -242,15 +376,15 @@ export default function EquipmentPage() {
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 4 }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>구분:</span>
-              {['전체','RR','FRT'].map(v => <button key={v} className={`btn btn-sm ${filter.rr===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,rr:v})}>{v}</button>)}
+              {['전체', 'RR', 'FRT'].map(v => <button key={v} className={`btn btn-sm ${filter.rr === v ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter({ ...filter, rr: v })}>{v}</button>)}
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>설비:</span>
-              {['전체','복합기','융착기','펀칭기','지그'].map(v => <button key={v} className={`btn btn-sm ${filter.type===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,type:v})}>{v}</button>)}
+              {['전체', '복합기', '융착기', '펀칭기', '지그'].map(v => <button key={v} className={`btn btn-sm ${filter.type === v ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter({ ...filter, type: v })}>{v}</button>)}
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>차종:</span>
-              {['전체','OV1','SP2','SP3','NQ5'].map(v => <button key={v} className={`btn btn-sm ${filter.model===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,model:v})}>{v}</button>)}
+              {['전체', 'OV1', 'SP2', 'SP3', 'NQ5'].map(v => <button key={v} className={`btn btn-sm ${filter.model === v ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter({ ...filter, model: v })}>{v}</button>)}
             </div>
           </div>
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
