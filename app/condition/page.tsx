@@ -96,7 +96,7 @@ export default function ConditionPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>조건표</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Condition</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>설비를 선택하면 조건 데이터가 표시됩니다</div>
           </div>
         </div>
