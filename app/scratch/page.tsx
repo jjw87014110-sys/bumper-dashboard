@@ -16,6 +16,9 @@ export default function ScratchPage() {
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), time_of_day: '오전', model: '', category: '', scratch_location: '', jig_status: '양호', equipment_issue: '해당없음', action: '', note: '' })
+  const [imageFile, setImageFile] = useState<File|null>(null)
+  const [imagePreview, setImagePreview] = useState<string>('')
+  const [uploading, setUploading] = useState(false)
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
@@ -43,22 +46,40 @@ export default function ScratchPage() {
   function openAdd() {
     setEditItem(null)
     setForm({ date: new Date().toISOString().slice(0,10), time_of_day: '오전', model: selected?.model || '', category: '', scratch_location: '', jig_status: '양호', equipment_issue: '해당없음', action: '', note: '' })
+    setImageFile(null)
+    setImagePreview('')
     setModal(true)
   }
 
-  function openEdit(r: any) { setEditItem(r); setForm({ ...r }); setModal(true) }
+  function openEdit(r: any) { setEditItem(r); setForm({ ...r }); setImageFile(null); setImagePreview(r.image_url||''); setModal(true) }
 
   async function handleSave() {
-    const payload = { ...form, equipment_no: selected.no }
+    setUploading(true)
+    let image_url = form.image_url || null
+
+    // 이미지 업로드
+    if (imageFile) {
+      const ext = imageFile.name.split('.').pop()
+      const fileName = `scratch_${Date.now()}.${ext}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('scratch-images')
+        .upload(fileName, imageFile, { upsert: true })
+      if (uploadError) { showToast('이미지 업로드 실패', 'error'); setUploading(false); return }
+      const { data: urlData } = supabase.storage.from('scratch-images').getPublicUrl(fileName)
+      image_url = urlData.publicUrl
+    }
+
+    const payload = { ...form, equipment_no: selected.no, image_url }
     if (editItem) {
       const { error } = await supabase.from('scratch').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
-      if (error) { showToast('수정 실패', 'error'); return }
+      if (error) { showToast('수정 실패', 'error'); setUploading(false); return }
       showToast('수정되었습니다')
     } else {
       const { error } = await supabase.from('scratch').insert([payload])
-      if (error) { showToast('등록 실패', 'error'); return }
+      if (error) { showToast('등록 실패', 'error'); setUploading(false); return }
       showToast('등록되었습니다')
     }
+    setUploading(false)
     setModal(false); reload()
   }
 
@@ -131,7 +152,7 @@ export default function ScratchPage() {
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                        <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','사진','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                         <tbody>{data.map(r => (
                           <tr key={r.id}>
                             <td style={td}>{r.date}</td>
@@ -142,6 +163,13 @@ export default function ScratchPage() {
                             <td style={td}><span className={`badge ${r.jig_status==='양호'?'badge-green':'badge-red'}`}>{r.jig_status}</span></td>
                             <td style={td}><span className={`badge ${r.equipment_issue==='해당없음'?'badge-gray':'badge-amber'}`}>{r.equipment_issue}</span></td>
                             <td style={td}>{r.action||'-'}</td>
+                            <td style={td}>
+                              {r.image_url
+                                ? <a href={r.image_url} target="_blank" rel="noopener noreferrer">
+                                    <img src={r.image_url} alt="찍힘사진" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer' }} />
+                                  </a>
+                                : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                            </td>
                             <td style={td}>{r.note||'-'}</td>
                             <td style={td}>
                               <div style={{ display: 'flex', gap: 4 }}>
@@ -213,10 +241,29 @@ export default function ScratchPage() {
                 <label className="form-label">비고</label>
                 <textarea className="form-textarea" value={form.note||''} onChange={e => setForm({...form, note: e.target.value})} style={{ minHeight: 60 }} />
               </div>
+              <div className="form-group form-grid-full">
+                <label className="form-label">사진 첨부</label>
+                <input type="file" accept="image/*" style={{ display: 'none' }} id="scratch-img-input"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setImageFile(file)
+                    setImagePreview(URL.createObjectURL(file))
+                  }} />
+                <label htmlFor="scratch-img-input" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', border: '1px dashed var(--border-light)', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  📷 사진 선택
+                </label>
+                {imagePreview && (
+                  <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                    <img src={imagePreview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                    <button onClick={() => { setImageFile(null); setImagePreview('') }} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--accent-red)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>취소</button>
-              <button className="btn btn-primary" onClick={handleSave}>{editItem ? '저장' : '등록'}</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={uploading}>{uploading ? '업로드 중...' : editItem ? '저장' : '등록'}</button>
             </div>
           </div>
         </div>
