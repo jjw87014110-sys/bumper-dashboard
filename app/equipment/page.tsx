@@ -33,8 +33,8 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
     return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
 
   if (tab === '알람') {
-    const holders = [...new Set(rows.map((r: any) => r.holder_no).filter(Boolean))].sort((a: any, b: any) => String(a).localeCompare(String(b)))
-    const dates = [...new Set(rows.map((r: any) => r.date))].sort((a: any, b: any) => b.localeCompare(a))
+    const holders = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b)))
+    const dates = Array.from(new Set(rows.map((r: any) => r.date))).sort((a: any, b: any) => b.localeCompare(a))
     const hasHolder = holders.length > 1
 
     if (hasHolder) {
@@ -105,8 +105,8 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
   }
 
   if (tab === '조건표') {
-    const holders = [...new Set(rows.map((r: any) => r.holder_no).filter(Boolean))].sort((a: any, b: any) => String(a).localeCompare(String(b)))
-    const dates = [...new Set(rows.map((r: any) => r.change_date))].sort((a: any, b: any) => b.localeCompare(a))
+    const holders = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b)))
+    const dates = Array.from(new Set(rows.map((r: any) => r.change_date))).sort((a: any, b: any) => b.localeCompare(a))
     const hasHolder = holders.length > 1
 
     if (hasHolder) {
