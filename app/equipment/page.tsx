@@ -353,6 +353,9 @@ export default function EquipmentPage() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ rr: '전체', type: '전체', model: '전체' })
+  const [modal, setModal] = useState(false)
+  const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
+  const [form, setForm] = useState<any>({ no: '', type: '복합기', rr_frt: 'RR', model: 'OV1', location: '', name: '', vendor: '' })
 
   useEffect(() => { fetchData() }, [])
 
@@ -361,6 +364,23 @@ export default function EquipmentPage() {
     const { data: eq } = await supabase.from('equipment').select('*').order('no')
     setData(eq || [])
     setLoading(false)
+  }
+
+  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+
+  function openAdd() {
+    const maxNo = data.length > 0 ? Math.max(...data.map(d => d.no)) + 1 : 1
+    setForm({ no: maxNo, type: '복합기', rr_frt: 'RR', model: 'OV1', location: '조립1라인', name: '', vendor: '' })
+    setModal(true)
+  }
+
+  async function handleSave() {
+    if (!form.no || !form.name) { showToast('설비번호와 설비명은 필수입니다', 'error'); return }
+    const { error } = await supabase.from('equipment').insert([{ ...form, no: Number(form.no) }])
+    if (error) { showToast('등록 실패: ' + error.message, 'error'); return }
+    showToast('설비가 등록되었습니다')
+    setModal(false)
+    fetchData()
   }
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
@@ -384,6 +404,7 @@ export default function EquipmentPage() {
               후가공설비 전체 목록 ({data.length}대) — 행 클릭 시 상세 데이터 펼쳐짐
             </div>
           </div>
+          <button className="btn btn-primary" onClick={openAdd}>+ 설비 추가</button>
         </div>
         <div className="content-area">
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -419,6 +440,65 @@ export default function EquipmentPage() {
           </div>
         </div>
       </div>
+    </div>
+  )
+
+      {modal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">설비 추가</div>
+              <button className="modal-close" onClick={() => setModal(false)}>×</button>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">설비 번호 *</label>
+                <input className="form-input" type="number" value={form.no} onChange={e => setForm({...form, no: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">구분 (RR/FRT)</label>
+                <select className="form-select" value={form.rr_frt} onChange={e => setForm({...form, rr_frt: e.target.value})}>
+                  <option value="RR">RR</option>
+                  <option value="FRT">FRT</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">설비 유형</label>
+                <select className="form-select" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                  {['복합기','융착기','펀칭기','지그'].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">차종</label>
+                <select className="form-select" value={form.model} onChange={e => setForm({...form, model: e.target.value})}>
+                  {['OV1','SP2','SP3','NQ5'].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div className="form-group form-grid-full">
+                <label className="form-label">설비명 *</label>
+                <input className="form-input" type="text" placeholder="설비명 입력" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">위치 (라인)</label>
+                <input className="form-input" type="text" placeholder="예: 조립1라인" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">업체</label>
+                <input className="form-input" type="text" placeholder="예: 부영ENG" value={form.vendor} onChange={e => setForm({...form, vendor: e.target.value})} />
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6 }}>
+              💡 복합기·융착기·펀칭기로 추가하면 알람, 찍힘, 조건표 등 모든 관리 페이지에 자동으로 반영됩니다.
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setModal(false)}>취소</button>
+              <button className="btn btn-primary" onClick={handleSave}>등록</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
 }
