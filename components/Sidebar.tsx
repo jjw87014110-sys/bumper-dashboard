@@ -4,16 +4,18 @@ import { useAuth } from '@/lib/auth'
 import { useEffect, useState } from 'react'
 
 const navItems = [
-  { href: '/dashboard', label: '대시보드', icon: 'grid' },
-  { href: '/equipment', label: '설비 목록', icon: 'server' },
+  { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+  { href: '/equipment', label: 'Equipment', icon: 'server' },
   { divider: true },
-  { href: '/alarm', label: '알람 관리', icon: 'bell' },
-  { href: '/scratch', label: '찍힘 관리', icon: 'alert' },
-  { href: '/imarking', label: '아이마킹', icon: 'chart' },
-  { href: '/condition', label: '조건표', icon: 'settings' },
+  { href: '/alarm', label: 'Alarm', icon: 'bell' },
+  { href: '/scratch', label: 'Scratch', icon: 'alert' },
+  { href: '/imarking', label: 'i-Marking', icon: 'chart' },
+  { href: '/condition', label: 'Condition', icon: 'settings' },
   { divider: true },
-  { href: '/maintenance', label: '정비이력', icon: 'tool' },
-  { href: '/materials', label: '자재 관리', icon: 'box' },
+  { href: '/maintenance', label: 'Maintenance', icon: 'tool' },
+  { href: '/materials', label: 'Materials', icon: 'box' },
+  { divider: true },
+  { href: '/staff', label: 'HR Info', icon: 'user' },
 ]
 
 function Icon({ name }: { name: string }) {
@@ -28,7 +30,7 @@ function Icon({ name }: { name: string }) {
     case 'settings': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="7.5" r="2"/><path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M3 3l1 1M11 11l1 1M3 12l1-1M11 4l1-1"/></svg>
     case 'tool': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M9.5 1.5l-6 6 1.5 4 4-1.5 6-6-1.5-4zM3.5 8.5l-2 4 4-2"/></svg>
     case 'box': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M2 10.5V5l5.5-3.5L13 5v5.5l-5.5 3.5z"/><path d="M7.5 1.5L2 5l5.5 3.5L13 5z"/><line x1="7.5" y1="8.5" x2="7.5" y2="14"/></svg>
-    case 'sun': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="7.5" r="2.5"/><path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M3 3l1 1M11 11l1 1M3 12l1-1M11 4l1-1"/></svg>
+    case 'user': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="5" r="2.5"/><path d="M2 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg>
     case 'moon': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M12 9A6 6 0 116 3a4.5 4.5 0 006 6z"/></svg>
     default: return null
   }
@@ -64,7 +66,7 @@ export default function Sidebar() {
           padding: '2px 7px', borderRadius: 4, marginBottom: 8, letterSpacing: 0.5
         }}>생산기술</div>
         <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4 }}>
-          후가공설비<br/>관리 시스템
+          Machine<br/>Mgmt System
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
           Post-Process Mgmt
