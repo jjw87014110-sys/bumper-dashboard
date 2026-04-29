@@ -1,20 +1,213 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
+const TABS_ALL = ['알람', '찍힘', '아이마킹', '조건표', '정비이력', '자재']
+const TABS_JIG = ['정비이력']
+
+async function loadTab(tab: string, no: number) {
+  switch (tab) {
+    case '알람':
+      return (await supabase.from('alarm').select('*').eq('equipment_no', no).order('date', { ascending: false })).data || []
+    case '찍힘':
+      return (await supabase.from('scratch').select('*').eq('equipment_no', no).order('date', { ascending: false })).data || []
+    case '아이마킹':
+      return (await supabase.from('imarking').select('*').eq('equipment_no', no).order('change_date', { ascending: false })).data || []
+    case '조건표':
+      return (await supabase.from('condition_table').select('*').eq('equipment_no', no).order('change_date', { ascending: false })).data || []
+    case '정비이력':
+      return (await supabase.from('maintenance').select('*').eq('equipment_no', no).order('maintenance_date', { ascending: false })).data || []
+    case '자재':
+      return (await supabase.from('materials').select('*').eq('equipment_no', no).order('item_no')).data || []
+    default: return []
+  }
+}
+
+function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
+  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
+  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)' }
+
+  if (rows.length === 0)
+    return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
+
+  if (tab === '알람') return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead><tr>{['일자','펀칭불량','융착불량','합계','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i) => (
+        <tr key={i}>
+          <td style={td}>{r.date}</td>
+          <td style={td}><span className={`badge ${r.punch_alarm>0?'badge-blue':'badge-gray'}`}>{r.punch_alarm}</span></td>
+          <td style={td}><span className={`badge ${r.weld_alarm>0?'badge-red':'badge-gray'}`}>{r.weld_alarm}</span></td>
+          <td style={td}><span className={`badge ${(r.punch_alarm+r.weld_alarm)>0?'badge-amber':'badge-green'}`}>{r.punch_alarm+r.weld_alarm}</span></td>
+          <td style={td}>{r.note||'-'}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  )
+
+  if (tab === '찍힘') return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i) => (
+        <tr key={i}>
+          <td style={td}>{r.date}</td>
+          <td style={td}>{r.time_of_day}</td>
+          <td style={td}><span className="badge badge-gray">{r.model}</span></td>
+          <td style={td}>{r.category}</td>
+          <td style={td}>{r.scratch_location}</td>
+          <td style={td}><span className={`badge ${r.jig_status==='양호'?'badge-green':'badge-red'}`}>{r.jig_status}</span></td>
+          <td style={td}><span className={`badge ${r.equipment_issue==='해당없음'?'badge-gray':'badge-amber'}`}>{r.equipment_issue}</span></td>
+          <td style={td}>{r.action||'-'}</td>
+          <td style={td}>{r.note||'-'}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  )
+
+  if (tab === '아이마킹' || tab === '조건표') return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead><tr>{['변경일자','구분','모드','단위','값','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i) => (
+        <tr key={i}>
+          <td style={td}>{(r.change_date||'').slice(0,10)}</td>
+          <td style={td}>{r.category}</td>
+          <td style={td}>{r.mode}</td>
+          <td style={td}>{r.unit}</td>
+          <td style={td}><span className="badge badge-blue">{r.value}</span></td>
+          <td style={td}>{r.note||'-'}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  )
+
+  if (tab === '정비이력') return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead><tr>{['정비일시','주/야','작업자','알람내용','불량유형','조치내역','교체부품','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i) => (
+        <tr key={i}>
+          <td style={td}>{String(r.maintenance_date||'').slice(0,16)}</td>
+          <td style={td}><span className={`badge ${r.shift==='주간'?'badge-amber':'badge-blue'}`}>{r.shift}</span></td>
+          <td style={td}>{r.worker}</td>
+          <td style={td}>{r.alarm_content||'-'}</td>
+          <td style={td}>{r.defect_type||'-'}</td>
+          <td style={td}>{r.action_detail||'-'}</td>
+          <td style={td}>{r.replaced_parts||'-'}</td>
+          <td style={td}>{r.note||'-'}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  )
+
+  if (tab === '자재') return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i) => (
+        <tr key={i}>
+          <td style={td}>{r.item_no}</td>
+          <td style={td}>{r.item_name}</td>
+          <td style={td}>{r.spec||'-'}</td>
+          <td style={td}>{r.maker||'-'}</td>
+          <td style={td}>{r.unit}</td>
+          <td style={td}><span className="badge badge-teal">{r.quantity}</span></td>
+          <td style={td}>{r.note||'-'}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  )
+
+  return null
+}
+
+function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rrColors: any }) {
+  const [open, setOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('')
+  const [tabData, setTabData] = useState<any[]>([])
+  const [tabLoading, setTabLoading] = useState(false)
+
+  const isJig = r.type === '지그'
+  const isSP2 = r.model === 'SP2'
+  const tabs = isJig ? TABS_JIG : TABS_ALL
+
+  async function handleOpen() {
+    if (open) { setOpen(false); return }
+    const firstTab = isJig ? '정비이력' : '알람'
+    setOpen(true)
+    setActiveTab(firstTab)
+    setTabLoading(true)
+    const rows = await loadTab(firstTab, r.no)
+    setTabData(rows)
+    setTabLoading(false)
+  }
+
+  async function handleTab(tab: string) {
+    setActiveTab(tab)
+    setTabLoading(true)
+    const rows = await loadTab(tab, r.no)
+    setTabData(rows)
+    setTabLoading(false)
+  }
+
+  return (
+    <>
+      <tr
+        onClick={handleOpen}
+        style={{ cursor: 'pointer', opacity: isSP2 ? 0.6 : 1, background: open ? 'var(--accent-blue-dim)' : undefined, transition: 'background 0.15s' }}
+        onMouseEnter={e => { if (!open) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+        onMouseLeave={e => { if (!open) (e.currentTarget as HTMLElement).style.background = '' }}
+      >
+        <td className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 12px' }}>{String(r.no).padStart(2,'0')}</td>
+        <td style={{ padding: '10px 12px' }}><span className={`badge ${typeColors[r.type]||'badge-gray'}`}>{r.type}</span></td>
+        <td style={{ padding: '10px 12px' }}><span className={`badge ${rrColors[r.rr_frt]||'badge-gray'}`}>{r.rr_frt}</span></td>
+        <td style={{ padding: '10px 12px' }}>
+          <span className="badge badge-gray">{r.model}</span>
+          {isSP2 && <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>단산</span>}
+        </td>
+        <td style={{ fontSize: 11, padding: '10px 12px', color: 'var(--text-muted)' }}>{r.location}</td>
+        <td style={{ fontSize: 11, padding: '10px 12px', color: 'var(--text-primary)', maxWidth: 320 }}>{r.name}</td>
+        <td style={{ fontSize: 11, padding: '10px 12px', color: 'var(--text-muted)' }}>{r.vendor}</td>
+        <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 12, color: open ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+          {open ? '▲' : '▼'}
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={8} style={{ padding: 0, background: 'var(--bg-secondary)' }}>
+            <div style={{ borderTop: '2px solid var(--accent-blue)' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                {tabs.map(tab => (
+                  <button key={tab} onClick={e => { e.stopPropagation(); handleTab(tab) }}
+                    style={{
+                      padding: '10px 18px', fontSize: 12,
+                      fontWeight: activeTab === tab ? 600 : 400,
+                      color: activeTab === tab ? 'var(--accent-blue)' : 'var(--text-muted)',
+                      borderBottom: activeTab === tab ? '2px solid var(--accent-blue)' : '2px solid transparent',
+                      background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: -1,
+                    }}>{tab}</button>
+                ))}
+                {isSP2 && <div style={{ marginLeft: 'auto', padding: '10px 16px', fontSize: 11, color: 'var(--text-muted)' }}>※ SP2 단산 — 이력 조회만 가능</div>}
+              </div>
+              <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
+                {tabLoading
+                  ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
+                  : <TabTable tab={activeTab} rows={tabData} />}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 export default function EquipmentPage() {
-  const { isLoggedIn } = useAuth()
-  const router = useRouter()
+  useAuth()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState({ rr:'전체', type:'전체', model:'전체' })
+  const [filter, setFilter] = useState({ rr: '전체', type: '전체', model: '전체' })
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
     setLoading(true)
@@ -23,8 +216,8 @@ export default function EquipmentPage() {
     setLoading(false)
   }
 
-  const typeColors: any = { '복합기':'badge-blue','융착기':'badge-green','펀칭기':'badge-amber','지그':'badge-gray' }
-  const rrColors: any = { 'RR':'badge-teal','FRT':'badge-blue' }
+  const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
+  const rrColors: any = { 'RR': 'badge-teal', 'FRT': 'badge-blue' }
 
   const filtered = data.filter(d => {
     if (filter.rr !== '전체' && d.rr_frt !== filter.rr) return false
@@ -39,53 +232,40 @@ export default function EquipmentPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize:17, fontWeight:700 }}>설비 목록</div>
-            <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>후가공설비 전체 목록 ({data.length}대)</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>설비 목록</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+              후가공설비 전체 목록 ({data.length}대) — 행 클릭 시 상세 데이터 펼쳐짐
+            </div>
           </div>
         </div>
-
         <div className="content-area">
-          {/* Filters */}
-          <div style={{ display:'flex', gap:12, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
-            <div style={{ display:'flex', gap:4 }}>
-              <span style={{ fontSize:11, color:'var(--text-muted)', lineHeight:'28px' }}>위치:</span>
-              {['전체','RR','FRT'].map(v => <button key={v} className={`btn btn-sm ${filter.rr===v?'btn-primary':'btn-ghost'}`} onClick={()=>setFilter({...filter,rr:v})}>{v}</button>)}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>구분:</span>
+              {['전체','RR','FRT'].map(v => <button key={v} className={`btn btn-sm ${filter.rr===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,rr:v})}>{v}</button>)}
             </div>
-            <div style={{ display:'flex', gap:4 }}>
-              <span style={{ fontSize:11, color:'var(--text-muted)', lineHeight:'28px' }}>유형:</span>
-              {['전체','복합기','융착기','펀칭기','지그'].map(v => <button key={v} className={`btn btn-sm ${filter.type===v?'btn-primary':'btn-ghost'}`} onClick={()=>setFilter({...filter,type:v})}>{v}</button>)}
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>설비:</span>
+              {['전체','복합기','융착기','펀칭기','지그'].map(v => <button key={v} className={`btn btn-sm ${filter.type===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,type:v})}>{v}</button>)}
             </div>
-            <div style={{ display:'flex', gap:4 }}>
-              <span style={{ fontSize:11, color:'var(--text-muted)', lineHeight:'28px' }}>차종:</span>
-              {['전체','OV1','SP2','SP3','NQ5'].map(v => <button key={v} className={`btn btn-sm ${filter.model===v?'btn-primary':'btn-ghost'}`} onClick={()=>setFilter({...filter,model:v})}>{v}</button>)}
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: '28px' }}>차종:</span>
+              {['전체','OV1','SP2','SP3','NQ5'].map(v => <button key={v} className={`btn btn-sm ${filter.model===v?'btn-primary':'btn-ghost'}`} onClick={() => setFilter({...filter,model:v})}>{v}</button>)}
             </div>
           </div>
-
-          <div className="card">
-            <div className="section-header">
-              <div className="section-title">설비 목록 <span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>{filtered.length}대</span></div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="section-header" style={{ padding: '14px 16px' }}>
+              <div className="section-title">설비 목록 <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>{filtered.length}대</span></div>
             </div>
             {loading ? (
-              <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>로딩 중...</div>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>로딩 중...</div>
             ) : (
-              <table className="data-table">
+              <table className="data-table" style={{ marginBottom: 0 }}>
                 <thead>
-                  <tr>
-                    <th>NO</th><th>유형</th><th>위치</th><th>차종</th><th>라인</th><th>설비명</th><th>업체</th>
-                  </tr>
+                  <tr><th>NO</th><th>설비</th><th>구분</th><th>차종</th><th>라인</th><th>설비명</th><th>업체</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {filtered.map(r => (
-                    <tr key={r.no}>
-                      <td className="mono" style={{ fontSize:12, color:'var(--text-muted)' }}>{String(r.no).padStart(2,'0')}</td>
-                      <td><span className={`badge ${typeColors[r.type]||'badge-gray'}`}>{r.type}</span></td>
-                      <td><span className={`badge ${rrColors[r.rr_frt]||'badge-gray'}`}>{r.rr_frt}</span></td>
-                      <td><span className="badge badge-gray">{r.model}</span></td>
-                      <td style={{ fontSize:11 }}>{r.location}</td>
-                      <td style={{ fontSize:11, color:'var(--text-primary)', maxWidth:300 }}>{r.name}</td>
-                      <td style={{ fontSize:11 }}>{r.vendor}</td>
-                    </tr>
-                  ))}
+                  {filtered.map(r => <EquipmentRow key={r.no} r={r} typeColors={typeColors} rrColors={rrColors} />)}
                 </tbody>
               </table>
             )}
