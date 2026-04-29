@@ -399,7 +399,7 @@ export default function EquipmentPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>설비 목록</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Equipment</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
               후가공설비 전체 목록 ({data.length}대) — 행 클릭 시 상세 데이터 펼쳐짐
             </div>
