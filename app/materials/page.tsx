@@ -67,7 +67,7 @@ export default function MaterialsPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>자재 관리</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Materials</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>설비를 선택하면 자재 목록이 표시됩니다</div>
           </div>
         </div>
