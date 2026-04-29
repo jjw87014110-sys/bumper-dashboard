@@ -1,16 +1,17 @@
 'use client'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import { useEffect, useState } from 'react'
 
 const navItems = [
   { href: '/dashboard', label: '대시보드', icon: 'grid' },
   { href: '/equipment', label: '설비 목록', icon: 'server' },
-  { label: '─', divider: true },
+  { divider: true },
   { href: '/alarm', label: '알람 관리', icon: 'bell' },
   { href: '/scratch', label: '찍힘 관리', icon: 'alert' },
   { href: '/imarking', label: '아이마킹', icon: 'chart' },
   { href: '/condition', label: '조건표', icon: 'settings' },
-  { label: '─', divider: true },
+  { divider: true },
   { href: '/maintenance', label: '정비이력', icon: 'tool' },
   { href: '/materials', label: '자재 관리', icon: 'box' },
 ]
@@ -27,6 +28,8 @@ function Icon({ name }: { name: string }) {
     case 'settings': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="7.5" r="2"/><path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M3 3l1 1M11 11l1 1M3 12l1-1M11 4l1-1"/></svg>
     case 'tool': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M9.5 1.5l-6 6 1.5 4 4-1.5 6-6-1.5-4zM3.5 8.5l-2 4 4-2"/></svg>
     case 'box': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M2 10.5V5l5.5-3.5L13 5v5.5l-5.5 3.5z"/><path d="M7.5 1.5L2 5l5.5 3.5L13 5z"/><line x1="7.5" y1="8.5" x2="7.5" y2="14"/></svg>
+    case 'sun': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="7.5" r="2.5"/><path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M3 3l1 1M11 11l1 1M3 12l1-1M11 4l1-1"/></svg>
+    case 'moon': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M12 9A6 6 0 116 3a4.5 4.5 0 006 6z"/></svg>
     default: return null
   }
 }
@@ -35,6 +38,22 @@ export default function Sidebar() {
   const path = usePathname()
   const router = useRouter()
   const { logout } = useAuth()
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') as 'dark' | 'light' | null
+    if (saved) {
+      setTheme(saved)
+      document.documentElement.setAttribute('data-theme', saved)
+    }
+  }, [])
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    document.documentElement.setAttribute('data-theme', next)
+    localStorage.setItem('theme', next)
+  }
 
   return (
     <aside className="sidebar">
@@ -53,9 +72,9 @@ export default function Sidebar() {
       </div>
 
       <nav style={{ flex: 1, padding: '10px 0' }}>
-        {navItems.map((item, i) => {
+        {navItems.map((item: any, i) => {
           if (item.divider) return (
-            <div key={i} style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
+            <div key={i} style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
           )
           const active = path === item.href
           return (
@@ -68,7 +87,7 @@ export default function Sidebar() {
                 color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
                 background: active ? 'var(--accent-blue-dim)' : 'transparent',
                 borderLeft: `2px solid ${active ? 'var(--accent-blue)' : 'transparent'}`,
-                fontSize: 12, fontWeight: active ? 500 : 400,
+                fontSize: 12, fontWeight: active ? 600 : 400,
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)' } }}
@@ -82,6 +101,16 @@ export default function Sidebar() {
       </nav>
 
       <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+        {/* 다크/라이트 토글 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '6px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+            <Icon name={theme === 'dark' ? 'moon' : 'sun'} />
+            {theme === 'dark' ? '다크 모드' : '라이트 모드'}
+          </div>
+          <button className="theme-toggle" onClick={toggleTheme} aria-label="테마 전환" />
+        </div>
+
+        {/* 사용자 정보 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
@@ -91,7 +120,7 @@ export default function Sidebar() {
           }}>정</div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 500 }}>정상협</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>램스 담당자</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>캠스 담당자</div>
           </div>
         </div>
         <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }} onClick={logout}>
