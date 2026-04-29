@@ -75,7 +75,7 @@ export default function ImarkingPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>아이마킹</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>i-Marking</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>설비를 선택하면 아이마킹 점검 이력이 표시됩니다 (1일 1설비 순환)</div>
           </div>
         </div>
