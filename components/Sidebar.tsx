@@ -101,16 +101,13 @@ export default function Sidebar() {
       </nav>
 
       <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
-        {/* 다크/라이트 토글 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '6px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
             <Icon name={theme === 'dark' ? 'moon' : 'sun'} />
-            {theme === 'dark' ? '다크 모드' : '라이트 모드'}
+            {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
           </div>
           <button className="theme-toggle" onClick={toggleTheme} aria-label="테마 전환" />
         </div>
-
-        {/* 사용자 정보 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
@@ -119,12 +116,12 @@ export default function Sidebar() {
             fontSize: 10, fontWeight: 700, color: 'var(--accent-blue)'
           }}>정</div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 500 }}>정상협</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>캠스 담당자</div>
+            <div style={{ fontSize: 11, fontWeight: 500 }}>정상협 PM</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>생산기술</div>
           </div>
         </div>
         <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }} onClick={logout}>
-          로그아웃
+          Log out
         </button>
       </div>
     </aside>
