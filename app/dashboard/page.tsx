@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const [clock, setClock] = useState('')
 
   useEffect(() => {
-    if (!isLoggedIn) { router.push('/login'); return }
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
     const t = setInterval(() => {
       const now = new Date()

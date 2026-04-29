@@ -57,7 +57,7 @@ export default function MaintenancePage() {
   const [deleteId, setDeleteId] = useState<number|null>(null)
 
   useEffect(() => {
-    if (!isLoggedIn) { router.push('/login'); return }
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
   }, [isLoggedIn])
 

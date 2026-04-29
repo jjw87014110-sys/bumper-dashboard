@@ -47,7 +47,7 @@ export default function ConditionPage() {
   const [filterEq, setFilterEq] = useState('전체')
 
   useEffect(() => {
-    if (!isLoggedIn) { router.push('/login'); return }
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
   }, [isLoggedIn])
 

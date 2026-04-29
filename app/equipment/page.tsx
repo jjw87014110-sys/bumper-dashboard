@@ -13,7 +13,7 @@ export default function EquipmentPage() {
   const [filter, setFilter] = useState({ rr:'전체', type:'전체', model:'전체' })
 
   useEffect(() => {
-    if (!isLoggedIn) { router.push('/login'); return }
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
   }, [isLoggedIn])
 
