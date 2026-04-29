@@ -8,6 +8,10 @@ const IMARKING_BASE_DATE = new Date('2026-04-29')
 const IMARKING_BASE_EQ = 1
 const TOTAL_EQ = 31
 
+function toLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+}
+
 function getImarkingSchedule(date: Date): number {
   const day = date.getDay()
   if (day === 0 || day === 6) return 0
@@ -56,11 +60,12 @@ export default function DashboardPage() {
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [calMonth, setCalMonth] = useState(today.getMonth())
 
-  const todayKey = today.toISOString().slice(0,10)
+  const todayKey = toLocalDate(today)
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [events, setEvents] = useState<Record<string, string[]>>({})
   const [completedDates, setCompletedDates] = useState<Record<string, string[]>>({}) // { 'YYYY-MM-DD': ['업무키'] }
 
+  const [customTodos, setCustomTodos] = useState<Record<string, string[]>>({}) // { 'YYYY-MM-DD': ['할일'] }
   const [eventModal, setEventModal] = useState(false)
   const [eventDate, setEventDate] = useState('')
   const [eventText, setEventText] = useState('')
@@ -78,6 +83,8 @@ export default function DashboardPage() {
       setEvents(savedEvents)
       const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
       setCompletedDates(savedCompleted)
+      const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+      setCustomTodos(savedCustomTodos)
     } catch {}
     return () => clearInterval(t)
   }, [])
@@ -101,6 +108,25 @@ export default function DashboardPage() {
     eqData.forEach((e: any) => { byType[e.type] = (byType[e.type]||0)+1 })
     setEquipByType(byType)
     setLoading(false)
+  }
+
+  function toggleCustomTodo(label: string) {
+    const key = `custom_${label}`
+    const next = { ...checked, [key]: !checked[key] }
+    setChecked(next)
+    localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
+    // 달력 completed 업데이트
+    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+    const todayCompleted: string[] = savedCompleted[todayKey] || []
+    if (!checked[key]) {
+      if (!todayCompleted.includes(label)) todayCompleted.push(label)
+    } else {
+      const idx = todayCompleted.indexOf(label)
+      if (idx > -1) todayCompleted.splice(idx, 1)
+    }
+    const nextCompleted = { ...savedCompleted, [todayKey]: todayCompleted }
+    setCompletedDates(nextCompleted)
+    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
   }
 
   function toggleTodo(item: typeof DAILY_TODOS[0]) {
@@ -127,19 +153,37 @@ export default function DashboardPage() {
 
   function addEvent() {
     if (!eventDate || !eventText.trim()) return
-    const next = { ...events, [eventDate]: [...(events[eventDate]||[]), eventText.trim()] }
+    const trimmed = eventText.trim()
+    // 달력 이벤트 저장
+    const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
     setEvents(next)
     localStorage.setItem('cal_events', JSON.stringify(next))
+    // 해당 날짜 custom todo에도 추가
+    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+    const dayTodos: string[] = savedCustomTodos[eventDate] || []
+    if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
+    const nextCustom = { ...savedCustomTodos, [eventDate]: dayTodos }
+    setCustomTodos(nextCustom)
+    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
     setEventModal(false)
     setEventText('')
   }
 
   function removeEvent(date: string, idx: number) {
     const arr = [...(events[date]||[])]
+    const removed = arr[idx]
     arr.splice(idx, 1)
     const next = { ...events, [date]: arr }
     setEvents(next)
     localStorage.setItem('cal_events', JSON.stringify(next))
+    // customTodos에서도 제거
+    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+    const dayTodos: string[] = savedCustomTodos[date] || []
+    const tidx = dayTodos.indexOf(removed)
+    if (tidx > -1) dayTodos.splice(tidx, 1)
+    const nextCustom = { ...savedCustomTodos, [date]: dayTodos }
+    setCustomTodos(nextCustom)
+    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
   }
 
   const firstDay = new Date(calYear, calMonth, 1)
@@ -226,6 +270,25 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
+                {/* 달력에서 추가된 오늘의 할일 */}
+                {(customTodos[todayKey] || []).map(label => {
+                  const key = `custom_${label}`
+                  return (
+                    <div key={label} onClick={() => toggleCustomTodo(label)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', transition: 'background 0.15s', borderTop: '1px solid var(--border)' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                    >
+                      <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: `2px solid ${checked[key] ? 'var(--accent-amber)' : 'var(--border-light)'}`, background: checked[key] ? 'var(--accent-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                        {checked[key] && <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 12, color: checked[key] ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: checked[key] ? 'line-through' : 'none' }}>
+                        {label}
+                        <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '1px 5px', borderRadius: 8 }}>추가</span>
+                      </span>
+                    </div>
+                  )
+                })}
                 <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-hover)' }}>
                   <div style={{ height: 4, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${(doneCount/DAILY_TODOS.length)*100}%`, background: doneCount === DAILY_TODOS.length ? 'var(--accent-green)' : 'var(--accent-blue)', borderRadius: 4, transition: 'width 0.3s' }} />
@@ -258,7 +321,7 @@ export default function DashboardPage() {
                   <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(calYear, calMonth - 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}>‹</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => { setCalYear(today.getFullYear()); setCalMonth(today.getMonth()) }}>오늘</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(calYear, calMonth + 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}>›</button>
-                  <button className="btn btn-primary btn-sm" onClick={() => { setEventDate(today.toISOString().slice(0,10)); setEventModal(true) }}>+ 일정 추가</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setEventDate(toLocalDate(today)); setEventModal(true) }}>+ 일정 추가</button>
                 </div>
               </div>
 
@@ -273,7 +336,7 @@ export default function DashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
                 {cells.map((date, idx) => {
                   if (!date) return <div key={idx} style={{ minHeight: 100, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }} />
-                  const dateStr = date.toISOString().slice(0,10)
+                  const dateStr = toLocalDate(date)
                   const isToday = dateStr === todayKey
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6
                   const imarkingEq = getImarkingSchedule(date)
