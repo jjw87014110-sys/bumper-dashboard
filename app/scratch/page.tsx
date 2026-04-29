@@ -4,6 +4,36 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import ExcelToolbar from '@/components/ExcelToolbar'
+
+const SCRATCH_COLUMNS = [
+  { key: 'date', label: '일자' },
+  { key: 'time_of_day', label: '오전/오후' },
+  { key: 'model', label: '차종' },
+  { key: 'category', label: '구분' },
+  { key: 'scratch_location', label: '찍힘부위' },
+  { key: 'equipment_no', label: '설비No' },
+  { key: 'jig_status', label: '지그상태' },
+  { key: 'equipment_issue', label: '설비문제' },
+  { key: 'action', label: '조치' },
+  { key: 'note', label: '비고' },
+]
+
+function parseScratchRow(row: any) {
+  if (!row['일자'] && !row['찍힘부위']) return null
+  return {
+    date: row['일자'] ? String(row['일자']).slice(0, 10) : new Date().toISOString().slice(0, 10),
+    time_of_day: row['오전/오후'] || '오전',
+    model: row['차종'] || 'SP3',
+    category: row['구분'] || 'FRNT / STD',
+    scratch_location: row['찍힘부위'] || '',
+    equipment_no: row['설비No'] ? Number(row['설비No']) : null,
+    jig_status: row['지그상태'] || '양호',
+    equipment_issue: row['설비문제'] || '해당없음',
+    action: row['조치'] || '해당없음',
+    note: row['비고'] || '',
+  }
+}
 
 const MODELS = ['SP3','OV1','NQ5','SP2']
 const CATEGORIES = ['FRNT / STD','FRNT / GTL','RR / STD','RR / GTL','FRNT / PDW']
@@ -114,6 +144,7 @@ export default function ScratchPage() {
               <div className="section-title">
                 찍힘 내역 <span style={{ fontFamily:'JetBrains Mono,monospace', fontSize:12, fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>총 {filtered.length}건</span>
               </div>
+              <ExcelToolbar tableName="scratch" columns={SCRATCH_COLUMNS} data={filtered} onImportComplete={fetchData} parseRow={parseScratchRow} />
             </div>
             {loading ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>로딩 중...</div>

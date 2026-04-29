@@ -4,6 +4,26 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import ExcelToolbar from '@/components/ExcelToolbar'
+
+const ALARM_COLUMNS = [
+  { key: 'date', label: '일자' },
+  { key: 'equipment_no', label: '설비No' },
+  { key: 'punch_alarm', label: '펀칭불량' },
+  { key: 'weld_alarm', label: '융착불량' },
+  { key: 'note', label: '비고' },
+]
+
+function parseAlarmRow(row: any) {
+  if (!row['일자'] && !row['설비No']) return null
+  return {
+    date: row['일자'] ? String(row['일자']).slice(0,10) : new Date().toISOString().slice(0,10),
+    equipment_no: row['설비No'] ? Number(row['설비No']) : null,
+    punch_alarm: Number(row['펀칭불량']) || 0,
+    weld_alarm: Number(row['융착불량']) || 0,
+    note: row['비고'] || '',
+  }
+}
 
 export default function AlarmPage() {
   const { isLoggedIn } = useAuth()
@@ -110,6 +130,7 @@ export default function AlarmPage() {
           <div className="card">
             <div className="section-header">
               <div className="section-title">알람 내역 <span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>총 {filtered.length}건</span></div>
+              <ExcelToolbar tableName="alarm" columns={ALARM_COLUMNS} data={filtered} onImportComplete={fetchData} parseRow={parseAlarmRow} />
             </div>
             {loading ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>로딩 중...</div>

@@ -4,6 +4,30 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import ExcelToolbar from '@/components/ExcelToolbar'
+
+const COND_COLUMNS = [
+  { key: 'change_date', label: '변경일자' },
+  { key: 'equipment_no', label: '설비No' },
+  { key: 'category', label: '구분' },
+  { key: 'mode', label: '모드' },
+  { key: 'unit', label: '단위' },
+  { key: 'value', label: '값' },
+  { key: 'note', label: '비고' },
+]
+
+function parseCondRow(row: any) {
+  if (!row['설비No'] && !row['값']) return null
+  return {
+    change_date: row['변경일자'] ? String(row['변경일자']).slice(0,10) : new Date().toISOString().slice(0,10),
+    equipment_no: row['설비No'] ? Number(row['설비No']) : null,
+    category: row['구분'] || '펀칭',
+    mode: row['모드'] || 'Time',
+    unit: row['단위'] || 'AMP[%]',
+    value: Number(row['값']) || 0,
+    note: row['비고'] || '',
+  }
+}
 
 const CATEGORIES = ['펀칭','융착','Air']
 const MODES = ['Time','Energy','Air','탈거력']
@@ -87,6 +111,7 @@ export default function ConditionPage() {
           <div className="card">
             <div className="section-header">
               <div className="section-title">조건표 내역 <span style={{fontSize:12,fontWeight:400,color:'var(--text-muted)',marginLeft:6}}>총 {filtered.length}건</span></div>
+              <ExcelToolbar tableName="condition_table" columns={COND_COLUMNS} data={filtered} onImportComplete={fetchData} parseRow={parseCondRow} />
             </div>
             {loading ? (
               <div style={{textAlign:'center',padding:'40px 0',color:'var(--text-muted)'}}>로딩 중...</div>

@@ -4,6 +4,38 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import ExcelToolbar from '@/components/ExcelToolbar'
+
+const MAINT_COLUMNS = [
+  { key: 'maintenance_date', label: '정비일시' },
+  { key: 'equipment_no', label: '설비No' },
+  { key: 'shift', label: '주/야' },
+  { key: 'worker', label: '작업자' },
+  { key: 'alarm_content', label: '알람내용' },
+  { key: 'defect_type', label: '불량유형' },
+  { key: 'action_detail', label: '조치내역' },
+  { key: 'pull_force', label: '탈거력' },
+  { key: 'appearance', label: '외관굴곡' },
+  { key: 'replaced_parts', label: '교체부품' },
+  { key: 'note', label: '비고' },
+]
+
+function parseMaintRow(row: any) {
+  if (!row['설비No'] && !row['작업자']) return null
+  return {
+    maintenance_date: row['정비일시'] || new Date().toISOString().slice(0,16),
+    equipment_no: row['설비No'] ? Number(row['설비No']) : null,
+    shift: row['주/야'] || '주간',
+    worker: row['작업자'] || '',
+    alarm_content: row['알람내용'] || '',
+    defect_type: row['불량유형'] || '기타',
+    action_detail: row['조치내역'] || '',
+    pull_force: row['탈거력'] || '',
+    appearance: row['외관굴곡'] || '',
+    replaced_parts: row['교체부품'] || '',
+    note: row['비고'] || '',
+  }
+}
 
 const SHIFTS = ['주간','야간']
 const DEFECT_TYPES = ['펀칭불량','융착불량','Air불량','기계적결함','기타']
@@ -85,6 +117,7 @@ export default function MaintenancePage() {
           <div className="card">
             <div className="section-header">
               <div className="section-title">정비이력 <span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>총 {data.length}건</span></div>
+              <ExcelToolbar tableName="maintenance" columns={MAINT_COLUMNS} data={data} onImportComplete={fetchData} parseRow={parseMaintRow} />
             </div>
             {loading ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>로딩 중...</div>

@@ -4,6 +4,32 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import ExcelToolbar from '@/components/ExcelToolbar'
+
+const MAT_COLUMNS = [
+  { key: 'equipment_no', label: '설비No' },
+  { key: 'item_no', label: '품목No' },
+  { key: 'item_name', label: '품목명' },
+  { key: 'spec', label: '규격' },
+  { key: 'maker', label: 'MAKER' },
+  { key: 'unit', label: '단위' },
+  { key: 'quantity', label: '수량' },
+  { key: 'note', label: '비고' },
+]
+
+function parseMatRow(row: any) {
+  if (!row['품목명']) return null
+  return {
+    equipment_no: row['설비No'] ? Number(row['설비No']) : null,
+    item_no: Number(row['품목No']) || 1,
+    item_name: row['품목명'] || '',
+    spec: row['규격'] || '',
+    maker: row['MAKER'] || '',
+    unit: row['단위'] || 'EA',
+    quantity: Number(row['수량']) || 0,
+    note: row['비고'] || '',
+  }
+}
 
 export default function MaterialsPage() {
   const { isLoggedIn } = useAuth()
@@ -92,6 +118,7 @@ export default function MaterialsPage() {
           <div className="card">
             <div className="section-header">
               <div className="section-title">자재 목록 <span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>총 {filtered.length}건</span></div>
+              <ExcelToolbar tableName="materials" columns={MAT_COLUMNS} data={filtered} onImportComplete={fetchData} parseRow={parseMatRow} />
             </div>
             {loading ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>로딩 중...</div>
