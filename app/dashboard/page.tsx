@@ -283,7 +283,6 @@ export default function DashboardPage() {
                           fontSize: 12, fontWeight: isToday ? 700 : 400,
                           color: isToday ? 'var(--accent-blue)' : wd === 0 ? 'var(--accent-red)' : wd === 6 ? 'var(--accent-blue)' : 'var(--text-primary)',
                           background: isToday ? 'var(--accent-blue)' : 'transparent',
-                          color: isToday ? 'white' : wd === 0 ? 'var(--accent-red)' : wd === 6 ? 'var(--accent-teal)' : 'var(--text-primary)',
                           width: 22, height: 22, borderRadius: '50%',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>{date.getDate()}</span>
