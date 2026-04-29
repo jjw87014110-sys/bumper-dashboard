@@ -110,7 +110,6 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
     const hasHolder = holders.length > 1
 
     if (hasHolder) {
-      // 날짜별, 구분+모드+단위 기준으로 행 구성
       type RowKey = string
       const rowKeys: RowKey[] = []
       const rowKeySet = new Set<RowKey>()
@@ -118,6 +117,14 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
         const key = `${r.change_date}__${r.category}__${r.mode}__${r.unit}`
         if (!rowKeySet.has(key)) { rowKeySet.add(key); rowKeys.push(key) }
       })
+
+      // 날짜별 rowspan 계산
+      const dateRowCount: Record<string, number> = {}
+      rowKeys.forEach(key => {
+        const date = key.split('__')[0]
+        dateRowCount[date] = (dateRowCount[date] || 0) + 1
+      })
+      const dateRendered = new Set<string>()
 
       return (
         <div style={{ overflowX: 'auto' }}>
@@ -140,9 +147,15 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
                 const keyRows = rows.filter((r: any) =>
                   r.change_date === date && r.category === category && r.mode === mode && r.unit === unit
                 )
+                const showDate = !dateRendered.has(date)
+                if (showDate) dateRendered.add(date)
                 return (
                   <tr key={key}>
-                    <td style={td}>{date?.slice(0, 10)}</td>
+                    {showDate && (
+                      <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }} rowSpan={dateRowCount[date]}>
+                        {date?.slice(0, 10)}
+                      </td>
+                    )}
                     <td style={td}>{category}</td>
                     <td style={td}>{mode}</td>
                     <td style={td}>{unit}</td>
