@@ -60,9 +60,8 @@ export default function ScratchPage() {
   const [filterModel, setFilterModel] = useState('전체')
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
-  }, [isLoggedIn])
+  }, [])
 
   async function fetchData() {
     setLoading(true)

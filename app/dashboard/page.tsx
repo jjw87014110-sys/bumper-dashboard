@@ -16,14 +16,13 @@ export default function DashboardPage() {
   const [clock, setClock] = useState('')
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('bumper_auth')) { router.push('/login'); return }
     fetchData()
     const t = setInterval(() => {
       const now = new Date()
       setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`)
     }, 1000)
     return () => clearInterval(t)
-  }, [isLoggedIn])
+  }, [])
 
   async function fetchData() {
     setLoading(true)
