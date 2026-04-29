@@ -440,8 +440,6 @@ export default function EquipmentPage() {
           </div>
         </div>
       </div>
-    </div>
-  )
 
       {modal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
