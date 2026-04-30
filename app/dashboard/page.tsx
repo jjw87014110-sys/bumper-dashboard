@@ -33,6 +33,167 @@ function getImarkingSchedule(date: Date): number {
       cur.setDate(cur.getDate() + 1)
     }
   }
+  return ((IMARKING_BASE_EQ - 1 + weekdayCount) % TOTAL_EQ + TOTAL_EQ) % TOTAL_EQ + 1
+}
+
+const DAILY_TODOS = [
+  { key: '변동점관리', label: '변동점관리', regular: true },
+  { key: '제품융착관리', label: '제품 융착관리', regular: true },
+  { key: '찍힘관리', label: '찍힘 관리', regular: true },
+  { key: '아이마킹', label: '아이마킹', regular: false },
+  { key: '정비이력관리', label: '정비이력 관리', regular: true },
+  { key: '알람관리', label: '알람관리', regular: true },
+]
+const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
+
+export default function DashboardPage() {
+  useAuth()
+  const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
+  const [equipByType, setEquipByType] = useState<any>({})
+  const [loading, setLoading] = useState(true)
+  const [clock, setClock] = useState('')
+  const [today] = useState(new Date())
+  const todayKey = toLocalDate(today)
+
+  const [calYear, setCalYear] = useState(today.getFullYear())
+  const [calMonth, setCalMonth] = useState(today.getMonth())
+
+  const [checked, setChecked] = useState<Record<string, boolean>>({})
+  const [customTodos, setCustomTodos] = useState<string[]>([])
+  const [customChecked, setCustomChecked] = useState<Record<string, boolean>>({})
+  const [events, setEvents] = useState<Record<string, string[]>>({})
+  const [completedDates, setCompletedDates] = useState<Record<string, string[]>>({})
+  const [eventModal, setEventModal] = useState(false)
+  const [eventDate, setEventDate] = useState('')
+  const [eventText, setEventText] = useState('')
+
+  useEffect(() => {
+    fetchData()
+    const t = setInterval(() => {
+      const now = new Date()
+      setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`)
+    }, 1000)
+    try {
+      const saved = JSON.parse(localStorage.getItem('todo_' + todayKey) || '{}')
+      setChecked(saved)
+      const savedEvents = JSON.parse(localStorage.getItem('cal_events') || '{}')
+      setEvents(savedEvents)
+      const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+      setCompletedDates(savedCompleted)
+      const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+      setCustomTodos(savedCustomTodos[todayKey] || [])
+      const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + todayKey) || '{}')
+      setCustomChecked(savedCustomChecked)
+    } catch {}
+    return () => clearInterval(t)
+  }, [])
+
+  async function fetchData() {
+    setLoading(true)
+    const [eq, al, mn, sc] = await Promise.all([
+      supabase.from('equipment').select('*'),
+      supabase.from('alarm').select('punch_alarm, weld_alarm'),
+      supabase.from('maintenance').select('id'),
+      supabase.from('scratch').select('id'),
+    ])
+    const eqData = eq.data || []
+    setStats({
+      equipment: eqData.length,
+      alarm: (al.data || []).reduce((s: number, r: any) => s + (r.punch_alarm||0) + (r.weld_alarm||0), 0),
+      maintenance: mn.data?.length || 0,
+      scratch: sc.data?.length || 0,
+    })
+    const byType: any = {}
+    eqData.forEach((e: any) => { byType[e.type] = (byType[e.type]||0)+1 })
+    setEquipByType(byType)
+    setLoading(false)
+  }
+
+  function toggleTodo(item: typeof DAILY_TODOS[0]) {
+    const next = { ...checked, [item.key]: !checked[item.key] }
+    setChecked(next)
+    localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
+    updateCompleted(item.label, !checked[item.key])
+    if (item.key === '아이마킹' && !checked[item.key]) {
+      const eqNo = getImarkingSchedule(today)
+      if (eqNo > 0) {
+        supabase.from('imarking').insert([{ equipment_no: eqNo, change_date: todayKey, category: '점검', mode: '아이마킹', unit: '점검완료', value: 1, note: 'Daily TO DO 체크로 자동 등록' }]).then(() => {})
+      }
+    }
+  }
+
+  function toggleCustomTodo(label: string) {
+    const next = { ...customChecked, [label]: !customChecked[label] }
+    setCustomChecked(next)
+    localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
+    updateCompleted(label, !customChecked[label])
+  }
+
+  function updateCompleted(label: string, isDone: boolean) {
+    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+    const todayCompleted: string[] = [...(savedCompleted[todayKey] || [])]
+    if (isDone) { if (!todayCompleted.includes(label)) todayCompleted.push(label) }
+    else { const idx = todayCompleted.indexOf(label); if (idx > -1) todayCompleted.splice(idx, 1) }
+    const nextCompleted = { ...savedCompleted, [todayKey]: todayCompleted }
+    setCompletedDates(nextCompleted)
+    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
+  }
+
+  function addEvent() {
+    if (!eventDate || !eventText.trim()) return
+    const trimmed = eventText.trim()
+    const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+    const dayTodos: string[] = savedCustomTodos[eventDate] || []
+    if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
+    const nextCustom = { ...savedCustomTodos, [eventDate]: dayTodos }
+    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
+    if (eventDate === todayKey) setCustomTodos(dayTodos)
+    setEventModal(false)
+    setEventText('')
+  }
+
+  function removeEvent(date: string, idx: number) {
+    const arr = [...(events[date]||[])]
+    const removed = arr[idx]
+    arr.splice(idx, 1)
+    const next = { ...events, [date]: arr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+    const dayTodos: string[] = savedCustomTodos[date] || []
+    const tidx = dayTodos.indexOf(removed)
+    if (tidx > -1) dayTodos.splice(tidx, 1)
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...savedCustomTodos, [date]: dayTodos }))
+    if (date === todayKey) setCustomTodos(dayTodos)
+    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+    const dayCompleted: string[] = savedCompleted[date] || []
+    const cidx = dayCompleted.indexOf(removed)
+    if (cidx > -1) dayCompleted.splice(cidx, 1)
+    const nextCompleted = { ...savedCompleted, [date]: dayCompleted }
+    setCompletedDates(nextCompleted)
+    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
+  }
+
+  const firstDay = new Date(calYear, calMonth, 1)
+  const lastDay = new Date(calYear, calMonth + 1, 0)
+  const cells: (Date|null)[] = []
+  for (let i = 0; i < firstDay.getDay(); i++) cells.push(null)
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(calYear, calMonth, d))
+
+  const doneCount = DAILY_TODOS.filter(t => checked[t.key]).length + customTodos.filter(t => customChecked[t]).length
+  const totalCount = DAILY_TODOS.length + customTodos.length
+  const todayImarking = getImarkingSchedule(today)
+
+  const kpiCards = [
+    { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
+    { label: '알람 건수', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
+    { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)' },
+    { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)' },
+  ]
+
   return (
     <div className="page-container">
       <Sidebar />
@@ -49,7 +210,6 @@ function getImarkingSchedule(date: Date): number {
         </div>
 
         <div className="content-area">
-          {/* KPI */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
             {kpiCards.map(k => (
               <div key={k.label} className="card" style={{ padding: '16px 18px' }}>
@@ -61,7 +221,6 @@ function getImarkingSchedule(date: Date): number {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
-            {/* 왼쪽: TO DO + 분포 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Daily TO DO */}
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -84,9 +243,7 @@ function getImarkingSchedule(date: Date): number {
                       <span style={{ fontSize: 12, color: checked[item.key] ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: checked[item.key] ? 'line-through' : 'none', transition: 'all 0.15s' }}>
                         {item.label}
                         {item.key === '아이마킹' && todayImarking > 0 && (
-                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--accent-blue)', background: 'var(--accent-blue-dim)', padding: '1px 6px', borderRadius: 10 }}>
-                            #{String(todayImarking).padStart(2,'0')} 설비
-                          </span>
+                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--accent-blue)', background: 'var(--accent-blue-dim)', padding: '1px 6px', borderRadius: 10 }}>#{String(todayImarking).padStart(2,'0')} 설비</span>
                         )}
                         {item.regular && <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '1px 5px', borderRadius: 8 }}>정기</span>}
                       </span>
