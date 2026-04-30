@@ -349,7 +349,11 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
 }
 
 export default function EquipmentPage() {
-  useAuth()
+  const { isPinVerified } = useAuth()
+  const _router = typeof window !== 'undefined' ? null : null
+  if (typeof window !== 'undefined' && !isPinVerified) {
+    window.location.href = '/login'
+  }
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ rr: '전체', type: '전체', model: '전체' })
