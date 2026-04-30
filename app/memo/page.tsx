@@ -5,7 +5,11 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function MemoPage() {
-  useAuth()
+  const { isPinVerified } = useAuth()
+  const _router = typeof window !== 'undefined' ? null : null
+  if (typeof window !== 'undefined' && !isPinVerified) {
+    window.location.href = '/login'
+  }
   const [memos, setMemos] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(true)
