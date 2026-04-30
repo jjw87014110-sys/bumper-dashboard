@@ -1,0 +1,309 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
+import Sidebar from '@/components/Sidebar'
+
+const DAILY_TODOS = [
+  { key: '변동점관리', label: '변동점관리' },
+  { key: '제품융착관리', label: '제품 융착관리' },
+  { key: '찍힘관리', label: '찍힘 관리' },
+  { key: '아이마킹', label: '아이마킹' },
+  { key: '정비이력관리', label: '정비이력 관리' },
+  { key: '알람관리', label: '알람관리' },
+]
+
+function toLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+}
+
+export default function WorklogPage() {
+  useAuth()
+  const [date, setDate] = useState(toLocalDate(new Date()))
+  const [author, setAuthor] = useState('정상협 PM')
+  const [checked, setChecked] = useState<Record<string, boolean>>({})
+  const [note, setNote] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [logText, setLogText] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [savedLogs, setSavedLogs] = useState<any[]>([])
+  const [selectedLog, setSelectedLog] = useState<any>(null)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
+
+  useEffect(() => {
+    // 오늘 TO DO 체크 상태 불러오기
+    const todayKey = toLocalDate(new Date())
+    try {
+      const saved = JSON.parse(localStorage.getItem('todo_' + todayKey) || '{}')
+      const customChecked = JSON.parse(localStorage.getItem('custom_checked_' + todayKey) || '{}')
+      const merged: Record<string, boolean> = {}
+      DAILY_TODOS.forEach(t => { if (saved[t.key]) merged[t.key] = true })
+      setChecked(merged)
+    } catch {}
+    fetchLogs()
+  }, [])
+
+  async function fetchLogs() {
+    const { data } = await supabase.from('worklogs').select('*').order('log_date', { ascending: false }).limit(30)
+    setSavedLogs(data || [])
+  }
+
+  function showToast(msg: string, type = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function generateLog() {
+    const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
+    if (selectedTodos.length === 0) { showToast('완료한 업무를 최소 1개 이상 선택해주세요', 'error'); return }
+
+    setGenerating(true)
+    setLogText('')
+
+    const prompt = `당신은 자동차 범퍼 후가공설비를 관리하는 생산기술 담당자의 업무일지를 작성해주는 AI입니다.
+
+아래 정보를 바탕으로 업무일지를 작성해주세요:
+- 날짜: ${date}
+- 작성자: ${author} / 생산기술팀
+- 완료한 업무: ${selectedTodos.join(', ')}
+${note ? `- 특이사항: ${note}` : ''}
+
+업무일지 작성 규칙:
+1. 한국어로 작성
+2. 각 업무별로 구체적인 수행 내용을 추론해서 작성
+3. 형식: 날짜, 작성자, 팀, 업무내용(번호 목록), 특이사항, 비고 순서로
+4. 전문적이고 간결하게 작성
+5. 업무일지 내용만 출력 (설명 없이)
+
+업무별 기본 내용 가이드:
+- 변동점관리: 생산 변동점(재료, 금형, 설비 등) 발생 여부 확인 및 기록
+- 제품 융착관리: 후가공설비 융착 조건 확인 및 불량 모니터링
+- 찍힘 관리: 범퍼 찍힘 발생 여부 전수 점검 및 원인 파악
+- 아이마킹: 담당 설비 아이마킹 조건 점검 및 기록
+- 정비이력 관리: 설비 정비 이력 확인 및 데이터 업데이트
+- 알람관리: 후가공설비 알람 발생 현황 점검 및 조치`
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      })
+      const data = await response.json()
+      const text = data.content?.[0]?.text || '생성 실패'
+      setLogText(text)
+    } catch {
+      showToast('생성 실패. 다시 시도해주세요.', 'error')
+    }
+    setGenerating(false)
+  }
+
+  async function saveLog() {
+    if (!logText) return
+    setSaving(true)
+    const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
+    const { error } = await supabase.from('worklogs').insert([{
+      log_date: date,
+      author,
+      todos: selectedTodos.join(', '),
+      note,
+      content: logText,
+    }])
+    if (error) { showToast('저장 실패', 'error') }
+    else { showToast('저장되었습니다'); fetchLogs() }
+    setSaving(false)
+  }
+
+  function copyText() {
+    navigator.clipboard.writeText(logText).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  async function deleteLog(id: number) {
+    await supabase.from('worklogs').delete().eq('id', id)
+    showToast('삭제되었습니다')
+    if (selectedLog?.id === id) setSelectedLog(null)
+    fetchLogs()
+  }
+
+  const td: React.CSSProperties = { fontSize: 11, padding: '8px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
+  const th: React.CSSProperties = { fontSize: 10, padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'left' as const }
+
+  return (
+    <div className="page-container">
+      <Sidebar />
+      <div className="main-area">
+        <div className="topbar">
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Work Log</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>AI 업무일지 자동 작성</div>
+          </div>
+        </div>
+
+        <div className="content-area">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
+            {/* 왼쪽: 작성 영역 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* 날짜/작성자 */}
+              <div className="card">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div className="form-group">
+                    <label className="form-label">날짜</label>
+                    <input className="form-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">작성자</label>
+                    <input className="form-input" type="text" value={author} onChange={e => setAuthor(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 업무 선택 */}
+              <div className="card">
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>완료한 업무 선택</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {DAILY_TODOS.map(item => (
+                    <div key={item.key}
+                      onClick={() => setChecked(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                        border: `1px solid ${checked[item.key] ? 'var(--accent-blue)' : 'var(--border)'}`,
+                        background: checked[item.key] ? 'var(--accent-blue-dim)' : 'transparent',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                        border: `2px solid ${checked[item.key] ? 'var(--accent-blue)' : 'var(--border-light)'}`,
+                        background: checked[item.key] ? 'var(--accent-blue)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {checked[item.key] && <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 12, color: checked[item.key] ? 'var(--accent-blue)' : 'var(--text-primary)', fontWeight: checked[item.key] ? 600 : 400 }}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 특이사항 */}
+              <div className="card">
+                <div className="form-group">
+                  <label className="form-label">특이사항 (선택)</label>
+                  <textarea className="form-textarea" placeholder="오늘 특이사항이나 추가 내용을 입력하세요..." value={note} onChange={e => setNote(e.target.value)} style={{ minHeight: 80 }} />
+                </div>
+              </div>
+
+              {/* 생성 버튼 */}
+              <button className="btn btn-primary" onClick={generateLog} disabled={generating}
+                style={{ padding: '12px', fontSize: 14, justifyContent: 'center' }}>
+                {generating ? '⏳ AI가 업무일지 작성 중...' : '✨ AI 업무일지 자동 생성'}
+              </button>
+
+              {/* 결과 */}
+              {(logText || generating) && (
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>생성된 업무일지</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={copyText}>
+                        {copied ? '✓ 복사됨' : '복사'}
+                      </button>
+                      <button className="btn btn-primary btn-sm" onClick={saveLog} disabled={saving || !logText}>
+                        {saving ? '저장 중...' : '💾 저장'}
+                      </button>
+                    </div>
+                  </div>
+                  {generating ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                      AI가 업무일지를 작성 중입니다...
+                    </div>
+                  ) : (
+                    <textarea
+                      value={logText}
+                      onChange={e => setLogText(e.target.value)}
+                      style={{
+                        width: '100%', minHeight: 320, padding: '16px',
+                        background: 'var(--bg-secondary)', border: 'none',
+                        color: 'var(--text-primary)', fontFamily: 'Noto Sans KR, sans-serif',
+                        fontSize: 12, lineHeight: 1.8, resize: 'vertical', outline: 'none',
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 오른쪽: 저장된 업무일지 목록 */}
+            <div>
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
+                  저장된 업무일지
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>{savedLogs.length}건</span>
+                </div>
+                {savedLogs.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>저장된 업무일지 없음</div>
+                ) : (
+                  <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+                    {savedLogs.map(log => (
+                      <div key={log.id}
+                        onClick={() => setSelectedLog(selectedLog?.id === log.id ? null : log)}
+                        style={{
+                          padding: '12px 14px', cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          background: selectedLog?.id === log.id ? 'var(--accent-blue-dim)' : 'transparent',
+                          borderLeft: `3px solid ${selectedLog?.id === log.id ? 'var(--accent-blue)' : 'transparent'}`,
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { if (selectedLog?.id !== log.id) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+                        onMouseLeave={e => { if (selectedLog?.id !== log.id) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: selectedLog?.id === log.id ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                            {log.log_date}
+                          </span>
+                          <button className="btn btn-danger btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                            onClick={e => { e.stopPropagation(); deleteLog(log.id) }}>삭제</button>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {log.todos}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 선택된 로그 내용 */}
+              {selectedLog && (
+                <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{selectedLog.log_date} 업무일지</div>
+                    <button className="btn btn-ghost btn-sm" onClick={() => {
+                      navigator.clipboard.writeText(selectedLog.content)
+                      showToast('복사되었습니다')
+                    }}>복사</button>
+                  </div>
+                  <div style={{ padding: 14, fontSize: 11, lineHeight: 1.8, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto' }}>
+                    {selectedLog.content}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+    </div>
+  )
+}
