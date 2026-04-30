@@ -15,6 +15,7 @@ export default function MemoPage() {
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [search, setSearch] = useState('')
+  const [isNew, setIsNew] = useState(false)
 
   useEffect(() => { fetchMemos() }, [])
 
@@ -31,12 +32,14 @@ export default function MemoPage() {
     setSelected(m)
     setTitle(m.title)
     setContent(m.content || '')
+    setIsNew(false)
   }
 
   function newMemo() {
     setSelected(null)
     setTitle('')
     setContent('')
+    setIsNew(true)
   }
 
   async function saveMemo() {
@@ -138,7 +141,7 @@ export default function MemoPage() {
 
           {/* 편집 영역 */}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
-            {selected === null && !title && !content ? (
+            {!isNew && selected === null ? (
               <div className="card" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>📝</div>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>메모를 선택하거나 새로 만들어보세요</div>
