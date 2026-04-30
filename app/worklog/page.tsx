@@ -30,23 +30,46 @@ export default function WorklogPage() {
   const [selectedLog, setSelectedLog] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
+  const [customTodos, setCustomTodos] = useState<string[]>([])
+  const [customChecked, setCustomChecked] = useState<Record<string, boolean>>({})
+  const [calEvents, setCalEvents] = useState<string[]>([])
 
   useEffect(() => {
-    // 오늘 TO DO 체크 상태 불러오기
-    const todayKey = toLocalDate(new Date())
+    loadDateData(date)
+    fetchLogs()
+  }, [])
+
+  function loadDateData(selectedDate: string) {
     try {
-      const saved = JSON.parse(localStorage.getItem('todo_' + todayKey) || '{}')
-      const customChecked = JSON.parse(localStorage.getItem('custom_checked_' + todayKey) || '{}')
+      // 정기 TO DO 체크 상태
+      const saved = JSON.parse(localStorage.getItem('todo_' + selectedDate) || '{}')
       const merged: Record<string, boolean> = {}
       DAILY_TODOS.forEach(t => { if (saved[t.key]) merged[t.key] = true })
       setChecked(merged)
+
+      // 달력에서 추가된 커스텀 할일
+      const customTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+      const customChecked = JSON.parse(localStorage.getItem('custom_checked_' + selectedDate) || '{}')
+      const dayCustomTodos: string[] = customTodos[selectedDate] || []
+      setCustomTodos(dayCustomTodos)
+      setCustomChecked(customChecked)
+
+      // 달력 이벤트
+      const events = JSON.parse(localStorage.getItem('cal_events') || '{}')
+      const dayEvents: string[] = events[selectedDate] || []
+      setCalEvents(dayEvents)
     } catch {}
-    fetchLogs()
-  }, [])
+  }
 
   async function fetchLogs() {
     const { data } = await supabase.from('worklogs').select('*').order('log_date', { ascending: false }).limit(30)
     setSavedLogs(data || [])
+  }
+
+  function handleDateChange(newDate: string) {
+    setDate(newDate)
+    setLogText('')
+    loadDateData(newDate)
   }
 
   function showToast(msg: string, type = 'success') {
@@ -56,7 +79,9 @@ export default function WorklogPage() {
 
   async function generateLog() {
     const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
-    if (selectedTodos.length === 0) { showToast('완료한 업무를 최소 1개 이상 선택해주세요', 'error'); return }
+    const selectedCustom = customTodos.filter(t => customChecked[t])
+    const allTodos = [...selectedTodos, ...selectedCustom]
+    if (allTodos.length === 0) { showToast('완료한 업무를 최소 1개 이상 선택해주세요', 'error'); return }
 
     setGenerating(true)
     setLogText('')
@@ -66,7 +91,7 @@ export default function WorklogPage() {
 아래 정보를 바탕으로 업무일지를 작성해주세요:
 - 날짜: ${date}
 - 작성자: ${author} / 생산기술팀
-- 완료한 업무: ${selectedTodos.join(', ')}
+- 완료한 업무: ${allTodos.join(', ')}
 ${note ? `- 특이사항: ${note}` : ''}
 
 업무일지 작성 규칙:
@@ -107,10 +132,12 @@ ${note ? `- 특이사항: ${note}` : ''}
     if (!logText) return
     setSaving(true)
     const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
+    const selectedCustom = customTodos.filter(t => customChecked[t])
+    const allSaveTodos = [...selectedTodos, ...selectedCustom]
     const { error } = await supabase.from('worklogs').insert([{
       log_date: date,
       author,
-      todos: selectedTodos.join(', '),
+      todos: allSaveTodos.join(', '),
       note,
       content: logText,
     }])
@@ -156,7 +183,7 @@ ${note ? `- 특이사항: ${note}` : ''}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div className="form-group">
                     <label className="form-label">날짜</label>
-                    <input className="form-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                    <input className="form-input" type="date" value={date} onChange={e => handleDateChange(e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">작성자</label>
@@ -195,6 +222,43 @@ ${note ? `- 특이사항: ${note}` : ''}
                   ))}
                 </div>
               </div>
+
+              {/* 달력/추가 업무 */}
+              {(customTodos.length > 0 || calEvents.length > 0) && (
+                <div className="card">
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                    {date} 추가 업무 / 일정
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {customTodos.map(todo => (
+                      <div key={todo}
+                        onClick={() => setCustomChecked(prev => ({ ...prev, [todo]: !prev[todo] }))}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                          border: `1px solid ${customChecked[todo] ? 'var(--accent-amber)' : 'var(--border)'}`,
+                          background: customChecked[todo] ? 'var(--accent-amber-dim)' : 'transparent',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: `2px solid ${customChecked[todo] ? 'var(--accent-amber)' : 'var(--border-light)'}`, background: customChecked[todo] ? 'var(--accent-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {customChecked[todo] && <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 12, color: customChecked[todo] ? 'var(--accent-amber)' : 'var(--text-primary)', fontWeight: customChecked[todo] ? 600 : 400 }}>
+                          {todo}
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '1px 6px', borderRadius: 8, marginLeft: 'auto' }}>추가</span>
+                      </div>
+                    ))}
+                    {calEvents.filter(e => !customTodos.includes(e)).map(ev => (
+                      <div key={ev} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-hover)', fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 10, color: 'var(--accent-teal)', background: 'var(--accent-teal-dim)', padding: '1px 6px', borderRadius: 8 }}>일정</span>
+                        {ev}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 특이사항 */}
               <div className="card">
