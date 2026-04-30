@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
 const ALLOWED_IP = '59.3.91.101'
+const EXTERNAL_PW = 'Pw00232!!'
 
 async function getClientIP(): Promise<string> {
   try {
@@ -101,16 +102,46 @@ export default function LoginPage() {
     )
   }
 
+  // 외부 접속 비밀번호 입력 처리
+  const [externalPw, setExternalPw] = useState('')
+  const [externalError, setExternalError] = useState('')
+  const [externalUnlocked, setExternalUnlocked] = useState(false)
+
+  function handleExternalPw(e: React.FormEvent) {
+    e.preventDefault()
+    if (externalPw === EXTERNAL_PW) {
+      setExternalUnlocked(true)
+      setIpBlocked(false)
+    } else {
+      setExternalError('비밀번호가 올바르지 않습니다.')
+    }
+  }
+
   // IP 차단
-  if (ipBlocked) {
+  if (ipBlocked && !externalUnlocked) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent-red)', marginBottom: 8 }}>접근이 차단되었습니다</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>허가되지 않은 IP에서의 접속입니다.</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-card)', padding: '8px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
-            현재 IP: {clientIP}
+        <div style={{ width: 360 }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>외부 접속 감지</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>허가된 네트워크 외 접속입니다.</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', background: 'var(--bg-card)', padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', display: 'inline-block' }}>
+              IP: {clientIP}
+            </div>
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, textAlign: 'center' }}>
+              외부 접속 비밀번호를 입력하면 접속할 수 있습니다
+            </div>
+            <form onSubmit={handleExternalPw}>
+              <input className="form-input" type="password" placeholder="외부 접속 비밀번호" value={externalPw}
+                onChange={e => setExternalPw(e.target.value)} autoFocus style={{ marginBottom: 12 }} />
+              {externalError && (
+                <div style={{ background: 'var(--accent-red-dim)', border: '1px solid var(--accent-red)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--accent-red)', marginBottom: 12 }}>{externalError}</div>
+              )}
+              <button className="btn btn-primary" type="submit" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>접속</button>
+            </form>
           </div>
         </div>
       </div>
