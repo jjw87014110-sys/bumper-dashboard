@@ -5,7 +5,11 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function ImarkingPage() {
-  useAuth()
+  const { isPinVerified } = useAuth()
+  const _router = typeof window !== 'undefined' ? null : null
+  if (typeof window !== 'undefined' && !isPinVerified) {
+    window.location.href = '/login'
+  }
   const [equipment, setEquipment] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
