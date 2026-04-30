@@ -36,6 +36,38 @@ function getImarkingSchedule(date: Date): number {
   return ((IMARKING_BASE_EQ - 1 + weekdayCount) % TOTAL_EQ + TOTAL_EQ) % TOTAL_EQ + 1
 }
 
+
+// 한국 공휴일 (2026년)
+const KR_HOLIDAYS: Record<string, string> = {
+  '2026-01-01': '신정',
+  '2026-01-28': '설날 연휴',
+  '2026-01-29': '설날',
+  '2026-01-30': '설날 연휴',
+  '2026-03-01': '삼일절',
+  '2026-05-01': '근로자의 날',
+  '2026-05-05': '어린이날',
+  '2026-05-15': '부처님 오신 날',
+  '2026-06-06': '현충일',
+  '2026-08-15': '광복절',
+  '2026-09-24': '추석 연휴',
+  '2026-09-25': '추석',
+  '2026-09-26': '추석 연휴',
+  '2026-10-03': '개천절',
+  '2026-10-09': '한글날',
+  '2026-12-25': '크리스마스',
+}
+
+function getTomorrowInfo(): { isOff: boolean; reason: string } {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`
+  const wd = tomorrow.getDay()
+  if (wd === 0) return { isOff: true, reason: '일요일' }
+  if (wd === 6) return { isOff: true, reason: '토요일' }
+  if (KR_HOLIDAYS[tomorrowStr]) return { isOff: true, reason: KR_HOLIDAYS[tomorrowStr] }
+  return { isOff: false, reason: '' }
+}
+
 const DAILY_TODOS = [
   { key: '변동점관리', label: '변동점관리', regular: true },
   { key: '제품융착관리', label: '제품 융착관리', regular: true },
@@ -47,7 +79,11 @@ const DAILY_TODOS = [
 const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
 
 export default function DashboardPage() {
-  useAuth()
+  const { isPinVerified } = useAuth()
+  const _router = typeof window !== 'undefined' ? null : null
+  if (typeof window !== 'undefined' && !isPinVerified) {
+    window.location.href = '/login'
+  }
   const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
   const [equipByType, setEquipByType] = useState<any>({})
   const [loading, setLoading] = useState(true)
@@ -187,6 +223,8 @@ export default function DashboardPage() {
   const totalCount = DAILY_TODOS.length + customTodos.length
   const todayImarking = getImarkingSchedule(today)
 
+  const tomorrowInfo = getTomorrowInfo()
+
   const kpiCards = [
     { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
     { label: '알람 건수', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
@@ -208,6 +246,32 @@ export default function DashboardPage() {
             <button className="btn btn-ghost" onClick={fetchData}>↻ 새로고침</button>
           </div>
         </div>
+
+        {/* 내일 휴일 알림 배너 */}
+        {tomorrowInfo.isOff && (
+          <div style={{
+            background: 'linear-gradient(135deg, var(--accent-amber-dim), var(--accent-blue-dim))',
+            border: '1px solid var(--accent-amber)',
+            borderRadius: 0,
+            padding: '12px 28px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: 24 }}>🎉</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-amber)' }}>
+                내일은 {tomorrowInfo.reason}! 쉬는 날이에요 🙌
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                오늘 업무 마무리 잘 하고 푹 쉬세요 — 내일 뵙겠습니다!
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: 28, opacity: 0.3 }}>🏖️</div>
+          </div>
+        )}
 
         <div className="content-area">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
