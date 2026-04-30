@@ -12,7 +12,6 @@ function BarChart({ items, color, max }: { items: any[], color: string, max: num
 
   return (
     <div>
-      {/* 바 차트 */}
       <div style={{ padding: '16px 16px 8px' }}>
         {items.map((item: any) => (
           <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -27,7 +26,6 @@ function BarChart({ items, color, max }: { items: any[], color: string, max: num
           </div>
         ))}
       </div>
-      {/* 테이블 */}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
           <th style={th}>순위</th>
@@ -48,13 +46,29 @@ function BarChart({ items, color, max }: { items: any[], color: string, max: num
   )
 }
 
+function toLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+}
+
 export default function AnalysisPage() {
-  useAuth()
+  const { isPinVerified } = useAuth()
+  const _router = typeof window !== 'undefined' ? null : null
+  if (typeof window !== 'undefined' && !isPinVerified) {
+    window.location.href = '/login'
+  }
   const [loading, setLoading] = useState(true)
   const [scratchByEq, setScratchByEq] = useState<any[]>([])
   const [maintenanceByEq, setMaintenanceByEq] = useState<any[]>([])
   const [alarmByEq, setAlarmByEq] = useState<any[]>([])
   const [topN, setTopN] = useState(10)
+
+  // 기간 설정 - 기본값: 최근 3개월
+  const today = new Date()
+  const threeMonthsAgo = new Date(today)
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+  const [dateFrom, setDateFrom] = useState(toLocalDate(threeMonthsAgo))
+  const [dateTo, setDateTo] = useState(toLocalDate(today))
+  const [activePreset, setActivePreset] = useState('3개월')
 
   useEffect(() => { fetchData() }, [])
 
@@ -62,13 +76,15 @@ export default function AnalysisPage() {
     setLoading(true)
     const [eqRes, alRes, mnRes, scRes] = await Promise.all([
       supabase.from('equipment').select('no, name'),
-      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm'),
-      supabase.from('maintenance').select('equipment_no'),
-      supabase.from('scratch').select('equipment_no'),
+      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date')
+        .gte('date', dateFrom).lte('date', dateTo),
+      supabase.from('maintenance').select('equipment_no, maintenance_date')
+        .gte('maintenance_date', dateFrom).lte('maintenance_date', dateTo + 'T23:59:59'),
+      supabase.from('scratch').select('equipment_no, date')
+        .gte('date', dateFrom).lte('date', dateTo),
     ])
     const eqData = eqRes.data || []
 
-    // 알람 집계
     const alarmMap: any = {}
     ;(alRes.data || []).forEach((r: any) => {
       alarmMap[r.equipment_no] = (alarmMap[r.equipment_no] || 0) + (r.punch_alarm||0) + (r.weld_alarm||0)
@@ -77,14 +93,12 @@ export default function AnalysisPage() {
       .map((e: any) => ({ no: e.no, name: e.name, count: alarmMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
 
-    // 정비 집계
     const mnMap: any = {}
     ;(mnRes.data || []).forEach((r: any) => { mnMap[r.equipment_no] = (mnMap[r.equipment_no]||0)+1 })
     setMaintenanceByEq(eqData.filter((e: any) => mnMap[e.no] > 0)
       .map((e: any) => ({ no: e.no, name: e.name, count: mnMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
 
-    // 찍힘 집계
     const scMap: any = {}
     ;(scRes.data || []).forEach((r: any) => { scMap[r.equipment_no] = (scMap[r.equipment_no]||0)+1 })
     setScratchByEq(eqData.filter((e: any) => scMap[e.no] > 0)
@@ -92,6 +106,19 @@ export default function AnalysisPage() {
       .sort((a: any, b: any) => b.count - a.count))
 
     setLoading(false)
+  }
+
+  function applyPreset(preset: string) {
+    const now = new Date()
+    const from = new Date(now)
+    setActivePreset(preset)
+    if (preset === '1주') from.setDate(from.getDate() - 7)
+    else if (preset === '1개월') from.setMonth(from.getMonth() - 1)
+    else if (preset === '3개월') from.setMonth(from.getMonth() - 3)
+    else if (preset === '6개월') from.setMonth(from.getMonth() - 6)
+    else if (preset === '1년') from.setFullYear(from.getFullYear() - 1)
+    setDateFrom(toLocalDate(from))
+    setDateTo(toLocalDate(now))
   }
 
   const scratchSlice = scratchByEq.slice(0, topN)
@@ -112,16 +139,40 @@ export default function AnalysisPage() {
             {[5,10,15,20].map(n => (
               <button key={n} className={`btn btn-sm ${topN===n?'btn-primary':'btn-ghost'}`} onClick={() => setTopN(n)}>{n}</button>
             ))}
-            <button className="btn btn-ghost" onClick={fetchData}>↻ 새로고침</button>
+            <button className="btn btn-ghost" onClick={fetchData}>↻ 조회</button>
           </div>
         </div>
 
         <div className="content-area">
+          {/* 기간 설정 */}
+          <div className="card" style={{ marginBottom: 16, padding: '14px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>기간 설정</div>
+              {/* 프리셋 */}
+              <div style={{ display: 'flex', gap: 4 }}>
+                {['1주','1개월','3개월','6개월','1년'].map(p => (
+                  <button key={p} className={`btn btn-sm ${activePreset===p?'btn-primary':'btn-ghost'}`}
+                    onClick={() => applyPreset(p)}>{p}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="date" className="form-input" style={{ padding: '5px 10px', fontSize: 12, width: 140 }}
+                  value={dateFrom} onChange={e => { setDateFrom(e.target.value); setActivePreset('') }} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>~</span>
+                <input type="date" className="form-input" style={{ padding: '5px 10px', fontSize: 12, width: 140 }}
+                  value={dateTo} onChange={e => { setDateTo(e.target.value); setActivePreset('') }} />
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={fetchData}>조회</button>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                {dateFrom} ~ {dateTo}
+              </div>
+            </div>
+          </div>
+
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>로딩 중...</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-              {/* 찍힘 현황 */}
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
@@ -133,7 +184,6 @@ export default function AnalysisPage() {
                 <BarChart items={scratchSlice} color="var(--accent-amber)" max={scratchSlice[0]?.count || 1} />
               </div>
 
-              {/* 정비 횟수 */}
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
@@ -145,7 +195,6 @@ export default function AnalysisPage() {
                 <BarChart items={maintenanceSlice} color="var(--accent-teal)" max={maintenanceSlice[0]?.count || 1} />
               </div>
 
-              {/* 알람 횟수 */}
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
