@@ -33,194 +33,6 @@ function getImarkingSchedule(date: Date): number {
       cur.setDate(cur.getDate() + 1)
     }
   }
-  return ((IMARKING_BASE_EQ - 1 + weekdayCount) % TOTAL_EQ + TOTAL_EQ) % TOTAL_EQ + 1
-}
-
-const DAILY_TODOS = [
-  { key: '변동점관리', label: '변동점관리', regular: true },
-  { key: '제품융착관리', label: '제품 융착관리', regular: true },
-  { key: '찍힘관리', label: '찍힘 관리', regular: true },
-  { key: '아이마킹', label: '아이마킹', regular: false },
-  { key: '정비이력관리', label: '정비이력 관리', regular: true },
-  { key: '알람관리', label: '알람관리', regular: true },
-]
-const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
-
-export default function DashboardPage() {
-  useAuth()
-  const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
-  const [equipByType, setEquipByType] = useState<any>({})
-  const [loading, setLoading] = useState(true)
-  const [clock, setClock] = useState('')
-  const [today] = useState(new Date())
-  const todayKey = toLocalDate(today)
-
-  const [calYear, setCalYear] = useState(today.getFullYear())
-  const [calMonth, setCalMonth] = useState(today.getMonth())
-
-  // 오늘 날짜 기준 checked 상태만 관리
-  const [checked, setChecked] = useState<Record<string, boolean>>({})
-  const [customTodos, setCustomTodos] = useState<string[]>([]) // 오늘 달력에서 추가된 할일
-  const [customChecked, setCustomChecked] = useState<Record<string, boolean>>({})
-
-  const [events, setEvents] = useState<Record<string, string[]>>({})
-  const [completedDates, setCompletedDates] = useState<Record<string, string[]>>({})
-
-  const [eventModal, setEventModal] = useState(false)
-  const [eventDate, setEventDate] = useState('')
-  const [eventText, setEventText] = useState('')
-
-  useEffect(() => {
-    fetchData()
-    const t = setInterval(() => {
-      const now = new Date()
-      setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`)
-    }, 1000)
-    try {
-      // 오늘 날짜 키로만 불러오기
-      const saved = JSON.parse(localStorage.getItem('todo_' + todayKey) || '{}')
-      setChecked(saved)
-      const savedEvents = JSON.parse(localStorage.getItem('cal_events') || '{}')
-      setEvents(savedEvents)
-      const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
-      setCompletedDates(savedCompleted)
-      // 오늘의 커스텀 할일
-      const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
-      setCustomTodos(savedCustomTodos[todayKey] || [])
-      const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + todayKey) || '{}')
-      setCustomChecked(savedCustomChecked)
-    } catch {}
-    return () => clearInterval(t)
-  }, [])
-
-  async function fetchData() {
-    setLoading(true)
-    const [eq, al, mn, sc] = await Promise.all([
-      supabase.from('equipment').select('*'),
-      supabase.from('alarm').select('punch_alarm, weld_alarm'),
-      supabase.from('maintenance').select('id'),
-      supabase.from('scratch').select('id'),
-    ])
-    const eqData = eq.data || []
-    setStats({
-      equipment: eqData.length,
-      alarm: (al.data || []).reduce((s: number, r: any) => s + (r.punch_alarm||0) + (r.weld_alarm||0), 0),
-      maintenance: mn.data?.length || 0,
-      scratch: sc.data?.length || 0,
-    })
-    const byType: any = {}
-    eqData.forEach((e: any) => { byType[e.type] = (byType[e.type]||0)+1 })
-    setEquipByType(byType)
-    setLoading(false)
-  }
-
-  function toggleTodo(item: typeof DAILY_TODOS[0]) {
-    const next = { ...checked, [item.key]: !checked[item.key] }
-    setChecked(next)
-    localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
-    updateCompleted(item.label, !checked[item.key])
-
-    // 아이마킹 체크 시 imarking DB에 자동 등록
-    if (item.key === '아이마킹' && !checked[item.key]) {
-      const eqNo = getImarkingSchedule(today)
-      if (eqNo > 0) {
-        supabase.from('imarking').insert([{
-          equipment_no: eqNo,
-          change_date: todayKey,
-          category: '점검',
-          mode: '아이마킹',
-          unit: '점검완료',
-          value: 1,
-          note: 'Daily TO DO 체크로 자동 등록',
-        }]).then(() => {})
-      }
-    }
-  }
-
-  function toggleCustomTodo(label: string) {
-    const next = { ...customChecked, [label]: !customChecked[label] }
-    setCustomChecked(next)
-    localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
-    updateCompleted(label, !customChecked[label])
-  }
-
-  function updateCompleted(label: string, isDone: boolean) {
-    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
-    const todayCompleted: string[] = [...(savedCompleted[todayKey] || [])]
-    if (isDone) {
-      if (!todayCompleted.includes(label)) todayCompleted.push(label)
-    } else {
-      const idx = todayCompleted.indexOf(label)
-      if (idx > -1) todayCompleted.splice(idx, 1)
-    }
-    const nextCompleted = { ...savedCompleted, [todayKey]: todayCompleted }
-    setCompletedDates(nextCompleted)
-    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
-  }
-
-  function addEvent() {
-    if (!eventDate || !eventText.trim()) return
-    const trimmed = eventText.trim()
-    const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
-    setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
-    // 해당 날짜 customTodos에 추가
-    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
-    const dayTodos: string[] = savedCustomTodos[eventDate] || []
-    if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
-    const nextCustom = { ...savedCustomTodos, [eventDate]: dayTodos }
-    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
-    // 오늘 날짜면 customTodos 상태 업데이트
-    if (eventDate === todayKey) setCustomTodos(dayTodos)
-    setEventModal(false)
-    setEventText('')
-  }
-
-  function removeEvent(date: string, idx: number) {
-    const arr = [...(events[date]||[])]
-    const removed = arr[idx]
-    arr.splice(idx, 1)
-    const next = { ...events, [date]: arr }
-    setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
-    // customTodos에서도 제거
-    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
-    const dayTodos: string[] = savedCustomTodos[date] || []
-    const tidx = dayTodos.indexOf(removed)
-    if (tidx > -1) dayTodos.splice(tidx, 1)
-    const nextCustom = { ...savedCustomTodos, [date]: dayTodos }
-    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
-    if (date === todayKey) setCustomTodos(dayTodos)
-    // completed에서도 제거
-    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
-    const dayCompleted: string[] = savedCompleted[date] || []
-    const cidx = dayCompleted.indexOf(removed)
-    if (cidx > -1) dayCompleted.splice(cidx, 1)
-    const nextCompleted = { ...savedCompleted, [date]: dayCompleted }
-    setCompletedDates(nextCompleted)
-    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
-  }
-
-  const firstDay = new Date(calYear, calMonth, 1)
-  const lastDay = new Date(calYear, calMonth + 1, 0)
-  const startWd = firstDay.getDay()
-  const cells: (Date|null)[] = []
-  for (let i = 0; i < startWd; i++) cells.push(null)
-  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(calYear, calMonth, d))
-
-  // 오늘 기준 checked만 카운트
-  const doneCount = DAILY_TODOS.filter(t => checked[t.key]).length
-    + customTodos.filter(t => customChecked[t]).length
-  const totalCount = DAILY_TODOS.length + customTodos.length
-  const todayImarking = getImarkingSchedule(today)
-
-  const kpiCards = [
-    { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
-    { label: '알람 건수', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
-    { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)' },
-    { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)' },
-  ]
-
   return (
     <div className="page-container">
       <Sidebar />
@@ -237,6 +49,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="content-area">
+          {/* KPI */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
             {kpiCards.map(k => (
               <div key={k.label} className="card" style={{ padding: '16px 18px' }}>
@@ -248,6 +61,7 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+            {/* 왼쪽: TO DO + 분포 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Daily TO DO */}
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -278,7 +92,6 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   ))}
-                  {/* 오늘 달력에서 추가된 할일 */}
                   {customTodos.map(label => (
                     <div key={label} onClick={() => toggleCustomTodo(label)}
                       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', transition: 'background 0.15s', borderTop: '1px solid var(--border)' }}
@@ -319,55 +132,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-              {/* 설비별 정비 횟수 */}
-              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
-                  설비별 정비 횟수
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>상위 10</span>
-                </div>
-                <div style={{ padding: '12px 16px' }}>
-                  {maintenanceByEq.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '20px 0' }}>데이터 없음</div>
-                  ) : maintenanceByEq.map((item: any) => (
-                    <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 22, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</div>
-                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{ height: '100%', width: `${(item.count/maintenanceByEq[0].count)*100}%`, background: 'var(--accent-teal)', borderRadius: 3, transition: 'width 0.5s' }} />
-                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '80%' }}>
-                          {item.name.length > 20 ? item.name.slice(0,20)+'…' : item.name}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-teal)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right', flexShrink: 0 }}>{item.count}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 설비별 알람 횟수 */}
-              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
-                  설비별 알람 횟수
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>융착+펀칭 합계, 상위 10</span>
-                </div>
-                <div style={{ padding: '12px 16px' }}>
-                  {alarmByEq.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '20px 0' }}>데이터 없음</div>
-                  ) : alarmByEq.map((item: any) => (
-                    <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 22, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</div>
-                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{ height: '100%', width: `${(item.count/alarmByEq[0].count)*100}%`, background: 'var(--accent-red)', borderRadius: 3, transition: 'width 0.5s' }} />
-                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '80%' }}>
-                          {item.name.length > 20 ? item.name.slice(0,20)+'…' : item.name}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-red)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right', flexShrink: 0 }}>{item.count}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {/* 달력 */}
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -386,7 +150,7 @@ export default function DashboardPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
                 {cells.map((date, idx) => {
-                  if (!date) return <div key={idx} style={{ minHeight: 100, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }} />
+                  if (!date) return <div key={idx} style={{ minHeight: 110, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }} />
                   const dateStr = toLocalDate(date)
                   const isToday = dateStr === todayKey
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6
@@ -394,10 +158,9 @@ export default function DashboardPage() {
                   const dayEvents = events[dateStr] || []
                   const dayCompleted = completedDates[dateStr] || []
                   const wd = date.getDay()
-
                   return (
                     <div key={idx}
-                      style={{ minHeight: 100, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '6px', background: isToday ? 'var(--accent-blue-dim)' : 'transparent', cursor: 'pointer' }}
+                      style={{ minHeight: 110, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '6px', background: isToday ? 'var(--accent-blue-dim)' : 'transparent', cursor: 'pointer' }}
                       onClick={() => { setEventDate(dateStr); setEventModal(true) }}
                     >
                       <div style={{ marginBottom: 4 }}>
@@ -405,19 +168,16 @@ export default function DashboardPage() {
                           {date.getDate()}
                         </span>
                       </div>
-                      {/* 아이마킹 */}
                       {!isWeekend && imarkingEq > 0 && (
                         <div style={{ fontSize: 9, padding: '2px 5px', borderRadius: 4, background: dayCompleted.includes('아이마킹') ? 'var(--accent-green-dim)' : 'var(--accent-teal-dim)', color: dayCompleted.includes('아이마킹') ? 'var(--accent-green)' : 'var(--accent-teal)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {dayCompleted.includes('아이마킹') ? '✓ ' : ''}i-Marking #{String(imarkingEq).padStart(2,'0')}
                         </div>
                       )}
-                      {/* 정기업무 */}
                       {!isWeekend && (
                         <div style={{ fontSize: 9, padding: '2px 5px', borderRadius: 4, background: REGULAR_TODOS.every(t => dayCompleted.includes(t)) ? 'var(--accent-green-dim)' : 'var(--bg-hover)', color: REGULAR_TODOS.every(t => dayCompleted.includes(t)) ? 'var(--accent-green)' : 'var(--text-muted)', marginBottom: 2 }}>
                           {REGULAR_TODOS.every(t => dayCompleted.includes(t)) ? '✓ 정기업무 완료' : '정기업무'}
                         </div>
                       )}
-                      {/* 커스텀 이벤트 */}
                       {dayEvents.map((ev, i) => {
                         const isDone = dayCompleted.includes(ev)
                         return (
