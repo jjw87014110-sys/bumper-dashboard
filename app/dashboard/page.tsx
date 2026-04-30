@@ -50,6 +50,9 @@ export default function DashboardPage() {
   useAuth()
   const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
   const [equipByType, setEquipByType] = useState<any>({})
+  const [scratchByEq, setScratchByEq] = useState<any[]>([])
+  const [maintenanceByEq, setMaintenanceByEq] = useState<any[]>([])
+  const [alarmByEq, setAlarmByEq] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [clock, setClock] = useState('')
   const [today] = useState(new Date())
@@ -95,11 +98,14 @@ export default function DashboardPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [eq, al, mn, sc] = await Promise.all([
+    const [eq, al, mn, sc, alEq, mnEq, scEq] = await Promise.all([
       supabase.from('equipment').select('*'),
       supabase.from('alarm').select('punch_alarm, weld_alarm'),
       supabase.from('maintenance').select('id'),
       supabase.from('scratch').select('id'),
+      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm'),
+      supabase.from('maintenance').select('equipment_no'),
+      supabase.from('scratch').select('equipment_no'),
     ])
     const eqData = eq.data || []
     setStats({
@@ -111,6 +117,36 @@ export default function DashboardPage() {
     const byType: any = {}
     eqData.forEach((e: any) => { byType[e.type] = (byType[e.type]||0)+1 })
     setEquipByType(byType)
+
+    // 설비별 알람 집계 (상위 10)
+    const alarmMap: any = {}
+    ;(alEq.data || []).forEach((r: any) => {
+      alarmMap[r.equipment_no] = (alarmMap[r.equipment_no] || 0) + (r.punch_alarm||0) + (r.weld_alarm||0)
+    })
+    const alarmArr = eqData
+      .filter((e: any) => alarmMap[e.no] > 0)
+      .map((e: any) => ({ no: e.no, name: e.name, count: alarmMap[e.no] || 0 }))
+      .sort((a: any, b: any) => b.count - a.count).slice(0, 10)
+    setAlarmByEq(alarmArr)
+
+    // 설비별 정비 횟수 (상위 10)
+    const mnMap: any = {}
+    ;(mnEq.data || []).forEach((r: any) => { mnMap[r.equipment_no] = (mnMap[r.equipment_no] || 0) + 1 })
+    const mnArr = eqData
+      .filter((e: any) => mnMap[e.no] > 0)
+      .map((e: any) => ({ no: e.no, name: e.name, count: mnMap[e.no] || 0 }))
+      .sort((a: any, b: any) => b.count - a.count).slice(0, 10)
+    setMaintenanceByEq(mnArr)
+
+    // 설비별 찍힘 횟수 (상위 10)
+    const scMap: any = {}
+    ;(scEq.data || []).forEach((r: any) => { scMap[r.equipment_no] = (scMap[r.equipment_no] || 0) + 1 })
+    const scArr = eqData
+      .filter((e: any) => scMap[e.no] > 0)
+      .map((e: any) => ({ no: e.no, name: e.name, count: scMap[e.no] || 0 }))
+      .sort((a: any, b: any) => b.count - a.count).slice(0, 10)
+    setScratchByEq(scArr)
+
     setLoading(false)
   }
 
@@ -313,6 +349,81 @@ export default function DashboardPage() {
                         <div style={{ height: '100%', width: `${(cnt/stats.equipment)*100}%`, background: 'var(--accent-blue)', borderRadius: 4 }} />
                       </div>
                       <div style={{ width: 20, fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', textAlign: 'right' }}>{cnt}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 하단 3개 차트 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginTop: 16 }}>
+              {/* 설비별 찍힘 현황 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
+                  설비별 찍힘 현황
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>상위 10</span>
+                </div>
+                <div style={{ padding: '12px 16px' }}>
+                  {scratchByEq.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '20px 0' }}>데이터 없음</div>
+                  ) : scratchByEq.map((item: any) => (
+                    <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 22, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</div>
+                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${(item.count/scratchByEq[0].count)*100}%`, background: 'var(--accent-amber)', borderRadius: 3, transition: 'width 0.5s' }} />
+                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '80%' }}>
+                          {item.name.length > 20 ? item.name.slice(0,20)+'…' : item.name}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-amber)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right', flexShrink: 0 }}>{item.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 설비별 정비 횟수 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
+                  설비별 정비 횟수
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>상위 10</span>
+                </div>
+                <div style={{ padding: '12px 16px' }}>
+                  {maintenanceByEq.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '20px 0' }}>데이터 없음</div>
+                  ) : maintenanceByEq.map((item: any) => (
+                    <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 22, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</div>
+                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${(item.count/maintenanceByEq[0].count)*100}%`, background: 'var(--accent-teal)', borderRadius: 3, transition: 'width 0.5s' }} />
+                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '80%' }}>
+                          {item.name.length > 20 ? item.name.slice(0,20)+'…' : item.name}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-teal)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right', flexShrink: 0 }}>{item.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 설비별 알람 횟수 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
+                  설비별 알람 횟수
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>융착+펀칭 합계, 상위 10</span>
+                </div>
+                <div style={{ padding: '12px 16px' }}>
+                  {alarmByEq.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '20px 0' }}>데이터 없음</div>
+                  ) : alarmByEq.map((item: any) => (
+                    <div key={item.no} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', width: 22, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</div>
+                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${(item.count/alarmByEq[0].count)*100}%`, background: 'var(--accent-red)', borderRadius: 3, transition: 'width 0.5s' }} />
+                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '80%' }}>
+                          {item.name.length > 20 ? item.name.slice(0,20)+'…' : item.name}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-red)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right', flexShrink: 0 }}>{item.count}</div>
                     </div>
                   ))}
                 </div>
