@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
@@ -84,7 +84,7 @@ export default function DashboardPage() {
   const [eventText, setEventText] = useState('')
 
   // 폭죽
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [showFireworks, setShowFireworks] = useState(false)
   const tomorrowInfo = getTomorrowInfo()
 
   useEffect(() => {
@@ -215,62 +215,9 @@ export default function DashboardPage() {
     localStorage.setItem('cal_completed', JSON.stringify(nc))
   }
 
-  // 폭죽 애니메이션
   function startFireworks() {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-
-    const particles: any[] = []
-    const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997']
-
-    function createFirework(x: number, y: number) {
-      for (let i = 0; i < 80; i++) {
-        const angle = (Math.PI*2/80)*i
-        const speed = 2+Math.random()*4
-        particles.push({
-          x, y,
-          vx: Math.cos(angle)*speed,
-          vy: Math.sin(angle)*speed,
-          alpha: 1,
-          color: colors[Math.floor(Math.random()*colors.length)],
-          size: 3+Math.random()*3,
-          gravity: 0.05+Math.random()*0.05,
-        })
-      }
-    }
-
-    // 3번 폭죽 발사
-    const positions = [
-      [window.innerWidth*0.2, window.innerHeight*0.3],
-      [window.innerWidth*0.5, window.innerHeight*0.2],
-      [window.innerWidth*0.8, window.innerHeight*0.35],
-    ]
-    positions.forEach(([x,y], i) => setTimeout(()=>createFirework(x,y), i*400))
-
-    let frame = 0
-    function animate() {
-      if (frame > 180) { canvas.style.display='none'; return }
-      ctx.fillStyle = 'rgba(0,0,0,0.15)'
-      ctx.fillRect(0,0,canvas.width,canvas.height)
-      particles.forEach((p,i) => {
-        p.x+=p.vx; p.vy+=p.gravity; p.y+=p.vy; p.alpha-=0.012
-        if (p.alpha<=0) { particles.splice(i,1); return }
-        ctx.globalAlpha=p.alpha
-        ctx.fillStyle=p.color
-        ctx.beginPath()
-        ctx.arc(p.x,p.y,p.size,0,Math.PI*2)
-        ctx.fill()
-      })
-      ctx.globalAlpha=1
-      frame++
-      requestAnimationFrame(animate)
-    }
-    canvas.style.display='block'
-    animate()
+    setShowFireworks(true)
+    setTimeout(() => setShowFireworks(false), 4000)
   }
 
   const firstDay = new Date(calYear, calMonth, 1)
@@ -293,8 +240,27 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-      {/* 폭죽 캔버스 */}
-      <canvas ref={canvasRef} style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999, display:'none' }} />
+      {/* CSS 폭죽 */}
+      {showFireworks && (
+        <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999, overflow:'hidden' }}>
+          {Array.from({length:20}).map((_,i) => (
+            <div key={i} style={{
+              position:'absolute',
+              left: `${5+Math.random()*90}%`,
+              top: `${5+Math.random()*60}%`,
+              width:8, height:8, borderRadius:'50%',
+              background:['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997'][i%7],
+              animation:`firework-${i%3} ${0.5+Math.random()*1}s ease-out forwards`,
+              animationDelay:`${Math.random()*2}s`,
+            }} />
+          ))}
+          <style>{`
+            @keyframes firework-0 { 0%{transform:scale(0) translate(0,0);opacity:1} 100%{transform:scale(1) translate(${Math.random()>0.5?'':'-'}${20+Math.floor(Math.random()*60)}px,${-20-Math.floor(Math.random()*80)}px);opacity:0} }
+            @keyframes firework-1 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(2) translate(${Math.random()>0.5?'':'-'}${10+Math.floor(Math.random()*40)}px,${-10-Math.floor(Math.random()*60)}px);opacity:0} }
+            @keyframes firework-2 { 0%{transform:scale(0) rotate(0deg);opacity:1} 100%{transform:scale(1.5) rotate(360deg) translate(${Math.random()>0.5?'':'-'}${15+Math.floor(Math.random()*50)}px,${-15-Math.floor(Math.random()*70)}px);opacity:0} }
+          `}</style>
+        </div>
+      )}
 
       <Sidebar />
       <div className="main-area">
