@@ -243,22 +243,34 @@ export default function DashboardPage() {
       {/* CSS 폭죽 */}
       {showFireworks && (
         <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999, overflow:'hidden' }}>
-          {Array.from({length:20}).map((_,i) => (
+          <style>{`
+            @keyframes fw { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translateY(-120px);opacity:0} }
+            @keyframes fw2 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(80px,-100px);opacity:0} }
+            @keyframes fw3 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(-80px,-100px);opacity:0} }
+            @keyframes fw4 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(40px,-140px);opacity:0} }
+          `}</style>
+          {([
+            {l:'20%',t:'60%',c:'#ff6b6b',a:'fw',d:'0s',s:10},
+            {l:'22%',t:'58%',c:'#ffd93d',a:'fw2',d:'0.1s',s:8},
+            {l:'18%',t:'62%',c:'#6bcb77',a:'fw3',d:'0.2s',s:12},
+            {l:'50%',t:'55%',c:'#4d96ff',a:'fw',d:'0.4s',s:10},
+            {l:'52%',t:'53%',c:'#ff922b',a:'fw2',d:'0.5s',s:8},
+            {l:'48%',t:'57%',c:'#cc5de8',a:'fw4',d:'0.6s',s:11},
+            {l:'80%',t:'58%',c:'#20c997',a:'fw',d:'0.8s',s:10},
+            {l:'82%',t:'56%',c:'#ffd93d',a:'fw3',d:'0.9s',s:9},
+            {l:'78%',t:'60%',c:'#ff6b6b',a:'fw2',d:'1.0s',s:12},
+            {l:'35%',t:'40%',c:'#4d96ff',a:'fw4',d:'1.2s',s:8},
+            {l:'65%',t:'42%',c:'#cc5de8',a:'fw',d:'1.4s',s:10},
+            {l:'50%',t:'30%',c:'#6bcb77',a:'fw2',d:'1.6s',s:11},
+          ] as any[]).map((p,i) => (
             <div key={i} style={{
-              position:'absolute',
-              left: `${5+Math.random()*90}%`,
-              top: `${5+Math.random()*60}%`,
-              width:8, height:8, borderRadius:'50%',
-              background:['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997'][i%7],
-              animation:`firework-${i%3} ${0.5+Math.random()*1}s ease-out forwards`,
-              animationDelay:`${Math.random()*2}s`,
+              position:'absolute', left:p.l, top:p.t,
+              width:p.s, height:p.s, borderRadius:'50%',
+              background:p.c,
+              animation:`${p.a} 1.2s ease-out forwards`,
+              animationDelay:p.d,
             }} />
           ))}
-          <style>{`
-            @keyframes firework-0 { 0%{transform:scale(0) translate(0,0);opacity:1} 100%{transform:scale(1) translate(${Math.random()>0.5?'':'-'}${20+Math.floor(Math.random()*60)}px,${-20-Math.floor(Math.random()*80)}px);opacity:0} }
-            @keyframes firework-1 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(2) translate(${Math.random()>0.5?'':'-'}${10+Math.floor(Math.random()*40)}px,${-10-Math.floor(Math.random()*60)}px);opacity:0} }
-            @keyframes firework-2 { 0%{transform:scale(0) rotate(0deg);opacity:1} 100%{transform:scale(1.5) rotate(360deg) translate(${Math.random()>0.5?'':'-'}${15+Math.floor(Math.random()*50)}px,${-15-Math.floor(Math.random()*70)}px);opacity:0} }
-          `}</style>
         </div>
       )}
 
