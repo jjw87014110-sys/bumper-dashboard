@@ -77,29 +77,47 @@ export default function WorklogPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  async function generateLog() {
+  const [promptText, setPromptText] = useState('')
+  const [showPromptModal, setShowPromptModal] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
+
+  function generateLog() {
     const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
     const selectedCustom = customTodos.filter(t => customChecked[t])
     const allTodos = [...selectedTodos, ...selectedCustom]
     if (allTodos.length === 0) { showToast('완료한 업무를 최소 1개 이상 선택해주세요', 'error'); return }
 
-    setGenerating(true)
-    setLogText('')
+    const prompt = `아래 정보를 바탕으로 업무일지를 작성해줘:
+- 날짜: ${date}
+- 작성자: ${author} / 생산기술팀
+- 완료한 업무: ${allTodos.join(', ')}
+${note ? `- 특이사항: ${note}` : ''}
 
+업무일지 형식:
+1. 날짜, 작성자, 팀
+2. 업무내용 (번호 목록으로 각 업무별 구체적인 수행 내용)
+3. 특이사항
+4. 비고
 
-    try {
-      const response = await fetch('/api/generate-worklog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, author, todos: allTodos.join(', '), note })
-      })
-      const data = await response.json()
-      if (data.error) { showToast('생성 실패. 다시 시도해주세요.', 'error'); setGenerating(false); return }
-      setLogText(data.text || '생성 실패')
-    } catch {
-      showToast('생성 실패. 다시 시도해주세요.', 'error')
-    }
-    setGenerating(false)
+업무별 내용 참고:
+- 변동점관리: 생산 변동점(재료/금형/설비) 발생 여부 확인 및 기록
+- 제품 융착관리: 후가공설비 융착 조건 확인 및 불량 모니터링
+- 찍힘 관리: 범퍼 찍힘 발생 여부 전수 점검 및 원인 파악
+- 아이마킹: 담당 설비 아이마킹 조건 점검 및 기록
+- 정비이력 관리: 설비 정비 이력 확인 및 데이터 업데이트
+- 알람관리: 후가공설비 알람 발생 현황 점검 및 조치
+
+업무일지 내용만 출력해줘 (설명 없이)`
+
+    setPromptText(prompt)
+    setShowPromptModal(true)
+  }
+
+  function copyPrompt() {
+    navigator.clipboard.writeText(promptText).then(() => {
+      setPromptCopied(true)
+      setTimeout(() => setPromptCopied(false), 2000)
+    })
   }
 
   async function saveLog() {
@@ -243,13 +261,13 @@ export default function WorklogPage() {
               </div>
 
               {/* 생성 버튼 */}
-              <button className="btn btn-primary" onClick={generateLog} disabled={generating}
+              <button className="btn btn-primary" onClick={generateLog} 
                 style={{ padding: '12px', fontSize: 14, justifyContent: 'center' }}>
-                {generating ? '⏳ AI가 업무일지 작성 중...' : '✨ AI 업무일지 자동 생성'}
+                '📋 업무일지 프롬프트 생성'
               </button>
 
               {/* 결과 */}
-              {(logText || generating) && (
+              {logText && (
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>생성된 업무일지</div>
@@ -341,6 +359,36 @@ export default function WorklogPage() {
           </div>
         </div>
       </div>
+      {/* 프롬프트 모달 */}
+      {showPromptModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowPromptModal(false)}>
+          <div className="modal" style={{ maxWidth: 600 }}>
+            <div className="modal-header">
+              <div className="modal-title">📋 업무일지 프롬프트</div>
+              <button className="modal-close" onClick={() => setShowPromptModal(false)}>×</button>
+            </div>
+            <div style={{ padding: '12px 16px', background: 'var(--accent-blue-dim)', borderRadius: 8, marginBottom: 14, fontSize: 12, color: 'var(--accent-blue)', border: '1px solid var(--accent-blue-dim)' }}>
+              💡 아래 프롬프트를 복사해서 <strong>Claude.ai</strong> 또는 <strong>ChatGPT</strong>에 붙여넣으면 업무일지가 자동 작성됩니다!
+              <div style={{ marginTop: 6 }}>
+                👉 <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>claude.ai</a> 로 바로 가기
+              </div>
+            </div>
+            <textarea
+              readOnly
+              value={promptText}
+              style={{ width: '100%', minHeight: 280, padding: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontFamily: 'Noto Sans KR, sans-serif', fontSize: 12, lineHeight: 1.7, resize: 'vertical', outline: 'none' }}
+              onClick={e => (e.target as HTMLTextAreaElement).select()}
+            />
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowPromptModal(false)}>닫기</button>
+              <button className="btn btn-primary" onClick={copyPrompt}>
+                {promptCopied ? '✓ 복사됨!' : '📋 프롬프트 복사'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
