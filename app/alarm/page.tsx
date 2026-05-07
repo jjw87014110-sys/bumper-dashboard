@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import {
+  getEquipmentStructure,
+  getFlatHolderKeys,
+  makeHolderKey,
+  parseHolderKey,
+} from '@/lib/holderStructure'
 
 export default function AlarmPage() {
   const { isPinVerified } = useAuth()
@@ -21,7 +27,8 @@ export default function AlarmPage() {
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_no: '', note: '' })
+  // 입력 폼: holder_category 와 holder_no 분리
+  const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_category: '', holder_no: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
@@ -48,14 +55,26 @@ export default function AlarmPage() {
 
   function openAdd() {
     setEditItem(null)
-    setForm({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_no: '', note: '' })
+    const structure = selected ? getEquipmentStructure(selected.no) : null
+    const defaultCategory = structure?.groups[0]?.category || ''
+    const defaultHolder = structure?.groups[0]?.holders[0] || ''
+    setForm({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_category: defaultCategory, holder_no: defaultHolder, note: '' })
     setModal(true)
   }
 
-  function openEdit(r: any) { setEditItem(r); setForm({ date: r.date, punch_alarm: r.punch_alarm, weld_alarm: r.weld_alarm, holder_no: r.holder_no||'', note: r.note||'' }); setModal(true) }
+  function openEdit(r: any) {
+    setEditItem(r)
+    const { category, holderNo } = parseHolderKey(r.holder_no)
+    setForm({ date: r.date, punch_alarm: r.punch_alarm, weld_alarm: r.weld_alarm, holder_category: category, holder_no: holderNo, note: r.note||'' })
+    setModal(true)
+  }
 
   async function handleSave() {
-    const payload = { equipment_no: selected.no, date: form.date, punch_alarm: Number(form.punch_alarm)||0, weld_alarm: Number(form.weld_alarm)||0, holder_no: form.holder_no||null, note: form.note }
+    // holder_category 와 holder_no 를 합쳐서 저장
+    const combinedHolder = form.holder_category && form.holder_no
+      ? makeHolderKey(form.holder_category, form.holder_no)
+      : (form.holder_no || null)
+    const payload = { equipment_no: selected.no, date: form.date, punch_alarm: Number(form.punch_alarm)||0, weld_alarm: Number(form.weld_alarm)||0, holder_no: combinedHolder, note: form.note }
     if (editItem) {
       const { error } = await supabase.from('alarm').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); return }
@@ -79,11 +98,47 @@ export default function AlarmPage() {
     return true
   })
 
-  const holders = Array.from(new Set(filtered.map(r => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as any[]
+  // 설비별 구조 가져오기
+  const structure = selected ? getEquipmentStructure(selected.no) : null
+
+  // 표시할 홀더 키 목록 결정
+  // 1. 구조가 정의된 설비: 정의된 순서대로 모든 홀더 표시 (데이터 없어도 "-")
+  // 2. 구조가 정의 안 된 설비: 데이터에서 사용된 홀더만 추출 (기존 동작)
+  let holderKeys: string[] = []
+  if (structure) {
+    holderKeys = getFlatHolderKeys(selected.no)
+  } else {
+    holderKeys = Array.from(new Set(filtered.map(r => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as string[]
+  }
+
   const dates = Array.from(new Set(filtered.map(r => r.date))).sort((a: any, b: any) => b.localeCompare(a)) as any[]
-  const hasHolder = holders.length > 1
+  const hasHolder = holderKeys.length > 1
   const totalPunch = filtered.reduce((s, r) => s + (r.punch_alarm||0), 0)
   const totalWeld = filtered.reduce((s, r) => s + (r.weld_alarm||0), 0)
+
+  // 카테고리별 그룹핑 (헤더 colspan 계산용)
+  // 각 holderKey를 파싱해서 같은 카테고리끼리 묶는다
+  const categoryGroups: { category: string; holders: { key: string; holderNo: string }[] }[] = []
+  if (structure) {
+    // 정의된 구조 그대로 사용
+    structure.groups.forEach(g => {
+      categoryGroups.push({
+        category: g.category,
+        holders: g.holders.map(h => ({ key: makeHolderKey(g.category, h), holderNo: h })),
+      })
+    })
+  } else if (hasHolder) {
+    // 구조 정의 없음 - 데이터에서 카테고리 추출
+    const grouped: Record<string, { key: string; holderNo: string }[]> = {}
+    holderKeys.forEach(k => {
+      const { category, holderNo } = parseHolderKey(k)
+      if (!grouped[category]) grouped[category] = []
+      grouped[category].push({ key: k, holderNo })
+    })
+    Object.entries(grouped).forEach(([category, holders]) => {
+      categoryGroups.push({ category, holders })
+    })
+  }
 
   return (
     <div className="page-container">
@@ -142,69 +197,104 @@ export default function AlarmPage() {
                   </div>
                 </div>
 
-                {/* 요약 + 기간 필터 */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr) auto', gap: 12, marginBottom: 12, alignItems: 'stretch' }}>
-                  {[
-                    { label: '총 알람', value: totalPunch + totalWeld, color: 'var(--accent-amber)' },
-                    { label: '펀칭불량', value: totalPunch, color: 'var(--accent-blue)' },
-                    { label: '융착불량', value: totalWeld, color: 'var(--accent-red)' },
-                  ].map(s => (
-                    <div key={s.label} className="card" style={{ padding: '12px 16px' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{s.label}</div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
-                    </div>
-                  ))}
-                  <div className="card" style={{ padding: '12px 14px', minWidth: 220 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>기간 설정</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input type="date" className="form-input" style={{ padding: '4px 8px', fontSize: 11 }} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>~</span>
-                      <input type="date" className="form-input" style={{ padding: '4px 8px', fontSize: 11 }} value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                      {(dateFrom || dateTo) && <button className="btn btn-ghost btn-sm" onClick={() => { setDateFrom(''); setDateTo('') }}>초기화</button>}
+                {/* 요약 카드 + 기간 필터 */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div className="card" style={{ flex: 1, minWidth: 130, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>총 알람</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-amber)' }}>{totalPunch + totalWeld}</div>
+                  </div>
+                  <div className="card" style={{ flex: 1, minWidth: 130, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>펀칭불량</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-blue)' }}>{totalPunch}</div>
+                  </div>
+                  <div className="card" style={{ flex: 1, minWidth: 130, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>융착불량</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-red)' }}>{totalWeld}</div>
+                  </div>
+                  <div className="card" style={{ minWidth: 220, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>기간 설정</div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input className="form-input" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 6px' }} />
+                      <span style={{ fontSize: 11 }}>~</span>
+                      <input className="form-input" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ fontSize: 11, padding: '4px 6px' }} />
                     </div>
                   </div>
                 </div>
 
-                {/* 테이블 */}
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
                     알람 내역 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>{filtered.length}건</span>
                   </div>
                   {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
-                  ) : filtered.length === 0 ? (
+                  ) : filtered.length === 0 && !structure ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
                   ) : hasHolder ? (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
+                          {/* 1행: 카테고리 그룹 헤더 (LH, RH 등) */}
                           <tr>
-                            <th style={th} rowSpan={2}>일자</th>
-                            {holders.map(h => <th key={h} style={{ ...th, textAlign: 'center' }} colSpan={2}>홀더 {h}</th>)}
-                            <th style={th} rowSpan={2}>비고</th>
-                            <th style={th} rowSpan={2}>관리</th>
+                            <th style={th} rowSpan={3}>일자</th>
+                            {categoryGroups.map((g, gi) => (
+                              <th
+                                key={`cat-${gi}`}
+                                style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
+                                colSpan={g.holders.length * 2}
+                              >
+                                {g.category}
+                              </th>
+                            ))}
+                            <th style={th} rowSpan={3}>비고</th>
+                            <th style={th} rowSpan={3}>관리</th>
                           </tr>
+                          {/* 2행: 홀더 번호 */}
                           <tr>
-                            {holders.map(h => <>
-                              <th key={h+'p'} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center' }}>펀칭</th>
-                              <th key={h+'w'} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>
-                            </>)}
+                            {categoryGroups.flatMap((g, gi) =>
+                              g.holders.map((h, hi) => (
+                                <th
+                                  key={`h-${gi}-${hi}`}
+                                  style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                  colSpan={2}
+                                >
+                                  {h.holderNo}
+                                </th>
+                              ))
+                            )}
+                          </tr>
+                          {/* 3행: 펀칭/융착 구분 */}
+                          <tr>
+                            {categoryGroups.flatMap((g, gi) =>
+                              g.holders.flatMap((h, hi) => [
+                                <th key={`p-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
+                                <th key={`w-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
+                              ])
+                            )}
                           </tr>
                         </thead>
                         <tbody>
-                          {dates.map(date => {
+                          {dates.length === 0 ? (
+                            <tr>
+                              <td style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }} colSpan={categoryGroups.reduce((s, g) => s + g.holders.length * 2, 0) + 3}>
+                                데이터 없음
+                              </td>
+                            </tr>
+                          ) : dates.map(date => {
                             const dayRows = filtered.filter(r => r.date === date)
                             const note = dayRows.find(r => r.note && r.note !== '-')?.note || '-'
                             return (
                               <tr key={date}>
                                 <td style={td}>{date}</td>
-                                {holders.map(h => {
-                                  const hr = dayRows.find(r => r.holder_no === h)
-                                  return <>
-                                    <td key={h+'p'} style={{ ...td, textAlign: 'center' }}><span className={`badge ${(hr?.punch_alarm||0)>0?'badge-blue':'badge-gray'}`}>{hr?.punch_alarm||0}</span></td>
-                                    <td key={h+'w'} style={{ ...td, textAlign: 'center' }}><span className={`badge ${(hr?.weld_alarm||0)>0?'badge-red':'badge-gray'}`}>{hr?.weld_alarm||0}</span></td>
-                                  </>
-                                })}
+                                {categoryGroups.flatMap((g, gi) =>
+                                  g.holders.flatMap((h, hi) => {
+                                    const hr = dayRows.find(r => r.holder_no === h.key)
+                                    const leftBorder = hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined
+                                    return [
+                                      <td key={`p-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: leftBorder }}><span className={`badge ${(hr?.punch_alarm||0)>0?'badge-blue':'badge-gray'}`}>{hr?.punch_alarm||0}</span></td>,
+                                      <td key={`w-${gi}-${hi}`} style={{ ...td, textAlign: 'center' }}><span className={`badge ${(hr?.weld_alarm||0)>0?'badge-red':'badge-gray'}`}>{hr?.weld_alarm||0}</span></td>,
+                                    ]
+                                  })
+                                )}
                                 <td style={td}>{note}</td>
                                 <td style={td}>
                                   <div style={{ display: 'flex', gap: 4 }}>
@@ -258,10 +348,32 @@ export default function AlarmPage() {
                 <label className="form-label">일자 *</label>
                 <input className="form-input" type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
               </div>
-              <div className="form-group">
-                <label className="form-label">홀더 번호</label>
-                <input className="form-input" type="text" placeholder="예: 1, 2, LH..." value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})} />
-              </div>
+              {/* 카테고리 + 홀더 번호 (구조가 정의된 설비는 select, 아니면 free input) */}
+              {structure ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">카테고리</label>
+                    <select className="form-select" value={form.holder_category} onChange={e => {
+                      const newCat = e.target.value
+                      const newGroup = structure.groups.find(g => g.category === newCat)
+                      setForm({...form, holder_category: newCat, holder_no: newGroup?.holders[0] || ''})
+                    }}>
+                      {structure.groups.map(g => <option key={g.category} value={g.category}>{g.category}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">홀더 번호</label>
+                    <select className="form-select" value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})}>
+                      {structure.groups.find(g => g.category === form.holder_category)?.holders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">홀더 번호</label>
+                  <input className="form-input" type="text" placeholder="예: 1, 2, LH..." value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})} />
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">펀칭불량 건수</label>
                 <input className="form-input" type="number" min="0" value={form.punch_alarm} onChange={e => setForm({...form, punch_alarm: e.target.value})} />
