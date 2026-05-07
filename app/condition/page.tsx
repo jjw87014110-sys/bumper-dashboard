@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import {
+  getEquipmentStructure,
+  getFlatHolderKeys,
+  makeHolderKey,
+  parseHolderKey,
+} from '@/lib/holderStructure'
 
 export default function ConditionPage() {
   const { isPinVerified } = useAuth()
@@ -19,7 +25,7 @@ export default function ConditionPage() {
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
-  const [form, setForm] = useState<any>({ change_date: new Date().toISOString().slice(0,10), category: '펀칭', mode: '', unit: '', value: '', holder_no: '', note: '' })
+  const [form, setForm] = useState<any>({ change_date: new Date().toISOString().slice(0,10), category: '펀칭', mode: '', unit: '', value: '', holder_category: '', holder_no: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
@@ -46,18 +52,25 @@ export default function ConditionPage() {
 
   function openAdd() {
     setEditItem(null)
-    setForm({ change_date: new Date().toISOString().slice(0,10), category: '펀칭', mode: '', unit: '', value: '', holder_no: '', note: '' })
+    const structure = selected ? getEquipmentStructure(selected.no) : null
+    const defaultCategory = structure?.groups[0]?.category || ''
+    const defaultHolder = structure?.groups[0]?.holders[0] || ''
+    setForm({ change_date: new Date().toISOString().slice(0,10), category: '펀칭', mode: '', unit: '', value: '', holder_category: defaultCategory, holder_no: defaultHolder, note: '' })
     setModal(true)
   }
 
   function openEdit(r: any) {
     setEditItem(r)
-    setForm({ change_date: r.change_date, category: r.category, mode: r.mode, unit: r.unit, value: r.value, holder_no: r.holder_no||'', note: r.note||'' })
+    const { category, holderNo } = parseHolderKey(r.holder_no)
+    setForm({ change_date: r.change_date, category: r.category, mode: r.mode, unit: r.unit, value: r.value, holder_category: category, holder_no: holderNo, note: r.note||'' })
     setModal(true)
   }
 
   async function handleSave() {
-    const payload = { equipment_no: selected.no, change_date: form.change_date, category: form.category, mode: form.mode, unit: form.unit, value: Number(form.value), holder_no: form.holder_no||null, note: form.note }
+    const combinedHolder = form.holder_category && form.holder_no
+      ? makeHolderKey(form.holder_category, form.holder_no)
+      : (form.holder_no || null)
+    const payload = { equipment_no: selected.no, change_date: form.change_date, category: form.category, mode: form.mode, unit: form.unit, value: Number(form.value), holder_no: combinedHolder, note: form.note }
     if (editItem) {
       const { error } = await supabase.from('condition_table').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); return }
@@ -75,8 +88,38 @@ export default function ConditionPage() {
     showToast('삭제되었습니다'); setDeleteId(null); reload()
   }
 
-  const holders = Array.from(new Set(data.map(r => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as any[]
-  const hasHolder = holders.length > 1
+  // 설비별 구조 가져오기
+  const structure = selected ? getEquipmentStructure(selected.no) : null
+
+  // 표시할 홀더 키 목록
+  let holderKeys: string[] = []
+  if (structure) {
+    holderKeys = getFlatHolderKeys(selected.no)
+  } else {
+    holderKeys = Array.from(new Set(data.map(r => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as string[]
+  }
+  const hasHolder = holderKeys.length > 1
+
+  // 카테고리별 그룹핑
+  const categoryGroups: { category: string; holders: { key: string; holderNo: string }[] }[] = []
+  if (structure) {
+    structure.groups.forEach(g => {
+      categoryGroups.push({
+        category: g.category,
+        holders: g.holders.map(h => ({ key: makeHolderKey(g.category, h), holderNo: h })),
+      })
+    })
+  } else if (hasHolder) {
+    const grouped: Record<string, { key: string; holderNo: string }[]> = {}
+    holderKeys.forEach(k => {
+      const { category, holderNo } = parseHolderKey(k)
+      if (!grouped[category]) grouped[category] = []
+      grouped[category].push({ key: k, holderNo })
+    })
+    Object.entries(grouped).forEach(([category, holders]) => {
+      categoryGroups.push({ category, holders })
+    })
+  }
 
   type RK = string
   const rowKeys: RK[] = []
@@ -153,24 +196,66 @@ export default function ConditionPage() {
                   </div>
                   {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
-                  ) : data.length === 0 ? (
+                  ) : data.length === 0 && !structure ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
-                          <tr>
-                            <th style={th}>변경일자</th>
-                            <th style={th}>구분</th>
-                            <th style={th}>모드</th>
-                            <th style={th}>단위</th>
-                            {hasHolder ? holders.map(h => <th key={h} style={{ ...th, textAlign: 'center' }}>홀더 {h}</th>) : <th style={th}>값</th>}
-                            <th style={th}>비고</th>
-                            <th style={th}>관리</th>
-                          </tr>
+                          {hasHolder && categoryGroups.length > 0 ? (
+                            <>
+                              {/* 1행: 카테고리 그룹 헤더 */}
+                              <tr>
+                                <th style={th} rowSpan={2}>변경일자</th>
+                                <th style={th} rowSpan={2}>구분</th>
+                                <th style={th} rowSpan={2}>모드</th>
+                                <th style={th} rowSpan={2}>단위</th>
+                                {categoryGroups.map((g, gi) => (
+                                  <th
+                                    key={`cat-${gi}`}
+                                    style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
+                                    colSpan={g.holders.length}
+                                  >
+                                    {g.category}
+                                  </th>
+                                ))}
+                                <th style={th} rowSpan={2}>비고</th>
+                                <th style={th} rowSpan={2}>관리</th>
+                              </tr>
+                              {/* 2행: 홀더 번호 */}
+                              <tr>
+                                {categoryGroups.flatMap((g, gi) =>
+                                  g.holders.map((h, hi) => (
+                                    <th
+                                      key={`h-${gi}-${hi}`}
+                                      style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                    >
+                                      {h.holderNo}
+                                    </th>
+                                  ))
+                                )}
+                              </tr>
+                            </>
+                          ) : (
+                            <tr>
+                              <th style={th}>변경일자</th>
+                              <th style={th}>구분</th>
+                              <th style={th}>모드</th>
+                              <th style={th}>단위</th>
+                              <th style={th}>값</th>
+                              <th style={th}>비고</th>
+                              <th style={th}>관리</th>
+                            </tr>
+                          )}
                         </thead>
                         <tbody>
-                          {rowKeys.map(key => {
+                          {rowKeys.length === 0 ? (
+                            <tr>
+                              <td style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }} colSpan={hasHolder ? categoryGroups.reduce((s, g) => s + g.holders.length, 0) + 6 : 7}>
+                                데이터 없음
+                              </td>
+                            </tr>
+                          ) : rowKeys.map(key => {
                             const [date, category, mode, unit] = key.split('__')
                             const keyRows = data.filter(r => r.change_date === date && r.category === category && r.mode === mode && r.unit === unit)
                             const showDate = !dateRendered.has(date)
@@ -186,10 +271,19 @@ export default function ConditionPage() {
                                 <td style={td}>{mode}</td>
                                 <td style={td}>{unit}</td>
                                 {hasHolder
-                                  ? holders.map(h => {
-                                      const hr = keyRows.find(r => r.holder_no === h)
-                                      return <td key={h} style={{ ...td, textAlign: 'center' }}>{hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
-                                    })
+                                  ? categoryGroups.flatMap((g, gi) =>
+                                      g.holders.map((h, hi) => {
+                                        const hr = keyRows.find(r => r.holder_no === h.key)
+                                        return (
+                                          <td
+                                            key={`v-${gi}-${hi}`}
+                                            style={{ ...td, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                          >
+                                            {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                                          </td>
+                                        )
+                                      })
+                                    )
                                   : <td style={td}><span className="badge badge-blue">{keyRows[0]?.value}</span></td>
                                 }
                                 <td style={td}>{keyRows.find(r => r.note)?.note || '-'}</td>
@@ -225,10 +319,32 @@ export default function ConditionPage() {
                 <label className="form-label">변경일자 *</label>
                 <input className="form-input" type="date" value={form.change_date} onChange={e => setForm({...form, change_date: e.target.value})} />
               </div>
-              <div className="form-group">
-                <label className="form-label">홀더 번호</label>
-                <input className="form-input" type="text" placeholder="예: 1, LH, 1-1..." value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})} />
-              </div>
+              {/* 카테고리 + 홀더 번호 */}
+              {structure ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">카테고리</label>
+                    <select className="form-select" value={form.holder_category} onChange={e => {
+                      const newCat = e.target.value
+                      const newGroup = structure.groups.find(g => g.category === newCat)
+                      setForm({...form, holder_category: newCat, holder_no: newGroup?.holders[0] || ''})
+                    }}>
+                      {structure.groups.map(g => <option key={g.category} value={g.category}>{g.category}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">홀더 번호</label>
+                    <select className="form-select" value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})}>
+                      {structure.groups.find(g => g.category === form.holder_category)?.holders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">홀더 번호</label>
+                  <input className="form-input" type="text" placeholder="예: 1, LH, 1-1..." value={form.holder_no} onChange={e => setForm({...form, holder_no: e.target.value})} />
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">구분</label>
                 <select className="form-select" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
