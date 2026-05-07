@@ -41,20 +41,17 @@ export default function WorklogPage() {
 
   function loadDateData(selectedDate: string) {
     try {
-      // 정기 TO DO 체크 상태
       const saved = JSON.parse(localStorage.getItem('todo_' + selectedDate) || '{}')
       const merged: Record<string, boolean> = {}
       DAILY_TODOS.forEach(t => { if (saved[t.key]) merged[t.key] = true })
       setChecked(merged)
 
-      // 달력에서 추가된 커스텀 할일
       const customTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
       const customChecked = JSON.parse(localStorage.getItem('custom_checked_' + selectedDate) || '{}')
       const dayCustomTodos: string[] = customTodos[selectedDate] || []
       setCustomTodos(dayCustomTodos)
       setCustomChecked(customChecked)
 
-      // 달력 이벤트
       const events = JSON.parse(localStorage.getItem('cal_events') || '{}')
       const dayEvents: string[] = events[selectedDate] || []
       setCalEvents(dayEvents)
@@ -77,11 +74,8 @@ export default function WorklogPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const [promptText, setPromptText] = useState('')
-  const [showPromptModal, setShowPromptModal] = useState(false)
-  const [promptCopied, setPromptCopied] = useState(false)
-
-  function generateLog() {
+  // ✅ AI 직접 호출로 업무일지 생성
+  async function generateLog() {
     const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
     const selectedCustom = customTodos.filter(t => customChecked[t])
     const allTodos = [...selectedTodos, ...selectedCustom]
@@ -109,15 +103,32 @@ ${note ? `- 특이사항: ${note}` : ''}
 
 업무일지 내용만 출력해줘 (설명 없이)`
 
-    setPromptText(prompt)
-    setShowPromptModal(true)
-  }
+    setGenerating(true)
+    setLogText('')
 
-  function copyPrompt() {
-    navigator.clipboard.writeText(promptText).then(() => {
-      setPromptCopied(true)
-      setTimeout(() => setPromptCopied(false), 2000)
-    })
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-5',
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data?.content?.[0]?.text) {
+        setLogText(data.content[0].text)
+      } else {
+        showToast('AI 생성 실패. 다시 시도해주세요.', 'error')
+      }
+    } catch (e) {
+      showToast('오류가 발생했습니다.', 'error')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   async function saveLog() {
@@ -151,9 +162,6 @@ ${note ? `- 특이사항: ${note}` : ''}
     if (selectedLog?.id === id) setSelectedLog(null)
     fetchLogs()
   }
-
-  const td: React.CSSProperties = { fontSize: 11, padding: '8px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   return (
     <div className="page-container">
@@ -261,21 +269,21 @@ ${note ? `- 특이사항: ${note}` : ''}
               </div>
 
               {/* 생성 버튼 */}
-              <button className="btn btn-primary" onClick={generateLog} 
+              <button className="btn btn-primary" onClick={generateLog} disabled={generating}
                 style={{ padding: '12px', fontSize: 14, justifyContent: 'center' }}>
-                '📋 업무일지 프롬프트 생성'
+                {generating ? '⏳ AI 작성 중...' : '✨ AI 업무일지 자동 생성'}
               </button>
 
               {/* 결과 */}
-              {logText && (
+              {(logText || generating) && (
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>생성된 업무일지</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={copyText}>
+                      <button className="btn btn-ghost btn-sm" onClick={copyText} disabled={generating}>
                         {copied ? '✓ 복사됨' : '복사'}
                       </button>
-                      <button className="btn btn-primary btn-sm" onClick={saveLog} disabled={saving || !logText}>
+                      <button className="btn btn-primary btn-sm" onClick={saveLog} disabled={saving || !logText || generating}>
                         {saving ? '저장 중...' : '💾 저장'}
                       </button>
                     </div>
@@ -340,7 +348,6 @@ ${note ? `- 특이사항: ${note}` : ''}
                 )}
               </div>
 
-              {/* 선택된 로그 내용 */}
               {selectedLog && (
                 <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -359,35 +366,6 @@ ${note ? `- 특이사항: ${note}` : ''}
           </div>
         </div>
       </div>
-      {/* 프롬프트 모달 */}
-      {showPromptModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowPromptModal(false)}>
-          <div className="modal" style={{ maxWidth: 600 }}>
-            <div className="modal-header">
-              <div className="modal-title">📋 업무일지 프롬프트</div>
-              <button className="modal-close" onClick={() => setShowPromptModal(false)}>×</button>
-            </div>
-            <div style={{ padding: '12px 16px', background: 'var(--accent-blue-dim)', borderRadius: 8, marginBottom: 14, fontSize: 12, color: 'var(--accent-blue)', border: '1px solid var(--accent-blue-dim)' }}>
-              💡 아래 프롬프트를 복사해서 <strong>Claude.ai</strong> 또는 <strong>ChatGPT</strong>에 붙여넣으면 업무일지가 자동 작성됩니다!
-              <div style={{ marginTop: 6 }}>
-                👉 <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>claude.ai</a> 로 바로 가기
-              </div>
-            </div>
-            <textarea
-              readOnly
-              value={promptText}
-              style={{ width: '100%', minHeight: 280, padding: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontFamily: 'Noto Sans KR, sans-serif', fontSize: 12, lineHeight: 1.7, resize: 'vertical', outline: 'none' }}
-              onClick={e => (e.target as HTMLTextAreaElement).select()}
-            />
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowPromptModal(false)}>닫기</button>
-              <button className="btn btn-primary" onClick={copyPrompt}>
-                {promptCopied ? '✓ 복사됨!' : '📋 프롬프트 복사'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
