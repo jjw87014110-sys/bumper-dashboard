@@ -9,6 +9,7 @@ import {
   makeHolderKey,
   parseHolderKey,
 } from '@/lib/holderStructure'
+import { exportAlarmData } from '@/lib/exportCSV'
 
 export default function AlarmPage() {
   const { isPinVerified } = useAuth()
@@ -193,6 +194,7 @@ export default function AlarmPage() {
                     <span className={`badge ${typeColors[selected.type]||'badge-gray'}`}>{selected.type}</span>
                     <span className="badge badge-gray">{selected.model}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{selected.name}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => exportAlarmData(selected.name, filtered)}>↓ Export</button>
                     <button className="btn btn-primary btn-sm" onClick={openAdd}>+ 등록</button>
                   </div>
                 </div>
