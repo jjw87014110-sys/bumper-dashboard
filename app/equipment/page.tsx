@@ -3,6 +3,11 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import {
+  getEquipmentStructure,
+  makeHolderKey,
+  parseHolderKey,
+} from '@/lib/holderStructure'
 
 const TABS_ALL = ['알람', '찍힘', '아이마킹', '조건표', '정비이력', '자재']
 const TABS_JIG = ['정비이력']
@@ -25,17 +30,50 @@ async function loadTab(tab: string, no: number) {
   }
 }
 
-function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
+function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipmentNo: number }) {
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
   const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' }
 
   if (rows.length === 0)
     return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
 
+  // 설비별 구조
+  const structure = getEquipmentStructure(equipmentNo)
+
+  // 카테고리 그룹 생성 (알람/조건표 공통)
+  function buildCategoryGroups(holderKeys: string[]) {
+    const groups: { category: string; holders: { key: string; holderNo: string }[] }[] = []
+    if (structure) {
+      structure.groups.forEach(g => {
+        groups.push({
+          category: g.category,
+          holders: g.holders.map(h => ({ key: makeHolderKey(g.category, h), holderNo: h })),
+        })
+      })
+    } else {
+      const grouped: Record<string, { key: string; holderNo: string }[]> = {}
+      holderKeys.forEach(k => {
+        const { category, holderNo } = parseHolderKey(k)
+        if (!grouped[category]) grouped[category] = []
+        grouped[category].push({ key: k, holderNo })
+      })
+      Object.entries(grouped).forEach(([category, holders]) => {
+        groups.push({ category, holders })
+      })
+    }
+    return groups
+  }
+
   if (tab === '알람') {
-    const holders = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b)))
+    let holderKeys: string[]
+    if (structure) {
+      holderKeys = structure.groups.flatMap(g => g.holders.map(h => makeHolderKey(g.category, h)))
+    } else {
+      holderKeys = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as string[]
+    }
     const dates = Array.from(new Set(rows.map((r: any) => r.date))).sort((a: any, b: any) => b.localeCompare(a))
-    const hasHolder = holders.length > 1
+    const hasHolder = holderKeys.length > 1
+    const categoryGroups = buildCategoryGroups(holderKeys)
 
     if (hasHolder) {
       return (
@@ -43,19 +81,30 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={th} rowSpan={2}>일자</th>
-                {holders.map((h: any) => (
-                  <th key={h} style={{ ...th, textAlign: 'center' }} colSpan={2}>홀더 {h}</th>
+                <th style={th} rowSpan={3}>일자</th>
+                {categoryGroups.map((g, gi) => (
+                  <th key={`cat-${gi}`} style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length * 2}>
+                    {g.category}
+                  </th>
                 ))}
-                <th style={th} rowSpan={2}>비고</th>
+                <th style={th} rowSpan={3}>비고</th>
               </tr>
               <tr>
-                {holders.map((h: any) => (
-                  <>
-                    <th key={h + 'p'} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center' }}>펀칭</th>
-                    <th key={h + 'w'} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>
-                  </>
-                ))}
+                {categoryGroups.flatMap((g, gi) =>
+                  g.holders.map((h, hi) => (
+                    <th key={`h-${gi}-${hi}`} style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={2}>
+                      {h.holderNo}
+                    </th>
+                  ))
+                )}
+              </tr>
+              <tr>
+                {categoryGroups.flatMap((g, gi) =>
+                  g.holders.flatMap((h, hi) => [
+                    <th key={`p-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
+                    <th key={`w-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
+                  ])
+                )}
               </tr>
             </thead>
             <tbody>
@@ -65,19 +114,20 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
                 return (
                   <tr key={date}>
                     <td style={td}>{date}</td>
-                    {holders.map((h: any) => {
-                      const hr = dayRows.find((r: any) => r.holder_no === h)
-                      return (
-                        <>
-                          <td key={h + 'p'} style={{ ...td, textAlign: 'center' }}>
+                    {categoryGroups.flatMap((g, gi) =>
+                      g.holders.flatMap((h, hi) => {
+                        const hr = dayRows.find((r: any) => r.holder_no === h.key)
+                        const leftBorder = hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined
+                        return [
+                          <td key={`p-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: leftBorder }}>
                             <span className={`badge ${(hr?.punch_alarm || 0) > 0 ? 'badge-blue' : 'badge-gray'}`}>{hr?.punch_alarm || 0}</span>
-                          </td>
-                          <td key={h + 'w'} style={{ ...td, textAlign: 'center' }}>
+                          </td>,
+                          <td key={`w-${gi}-${hi}`} style={{ ...td, textAlign: 'center' }}>
                             <span className={`badge ${(hr?.weld_alarm || 0) > 0 ? 'badge-red' : 'badge-gray'}`}>{hr?.weld_alarm || 0}</span>
-                          </td>
-                        </>
-                      )
-                    })}
+                          </td>,
+                        ]
+                      })
+                    )}
                     <td style={td}>{note}</td>
                   </tr>
                 )
@@ -105,9 +155,14 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
   }
 
   if (tab === '조건표') {
-    const holders = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b)))
-    const dates = Array.from(new Set(rows.map((r: any) => r.change_date))).sort((a: any, b: any) => b.localeCompare(a))
-    const hasHolder = holders.length > 1
+    let holderKeys: string[]
+    if (structure) {
+      holderKeys = structure.groups.flatMap(g => g.holders.map(h => makeHolderKey(g.category, h)))
+    } else {
+      holderKeys = Array.from(new Set(rows.map((r: any) => r.holder_no).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b))) as string[]
+    }
+    const hasHolder = holderKeys.length > 1
+    const categoryGroups = buildCategoryGroups(holderKeys)
 
     if (hasHolder) {
       type RowKey = string
@@ -118,7 +173,6 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
         if (!rowKeySet.has(key)) { rowKeySet.add(key); rowKeys.push(key) }
       })
 
-      // 날짜별 rowspan 계산
       const dateRowCount: Record<string, number> = {}
       rowKeys.forEach(key => {
         const date = key.split('__')[0]
@@ -131,14 +185,25 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={th}>변경일자</th>
-                <th style={th}>구분</th>
-                <th style={th}>모드</th>
-                <th style={th}>단위</th>
-                {holders.map((h: any) => (
-                  <th key={h} style={{ ...th, textAlign: 'center' }}>홀더 {h}</th>
+                <th style={th} rowSpan={2}>변경일자</th>
+                <th style={th} rowSpan={2}>구분</th>
+                <th style={th} rowSpan={2}>모드</th>
+                <th style={th} rowSpan={2}>단위</th>
+                {categoryGroups.map((g, gi) => (
+                  <th key={`cat-${gi}`} style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length}>
+                    {g.category}
+                  </th>
                 ))}
-                <th style={th}>비고</th>
+                <th style={th} rowSpan={2}>비고</th>
+              </tr>
+              <tr>
+                {categoryGroups.flatMap((g, gi) =>
+                  g.holders.map((h, hi) => (
+                    <th key={`h-${gi}-${hi}`} style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
+                      {h.holderNo}
+                    </th>
+                  ))
+                )}
               </tr>
             </thead>
             <tbody>
@@ -159,14 +224,16 @@ function TabTable({ tab, rows }: { tab: string; rows: any[] }) {
                     <td style={td}>{category}</td>
                     <td style={td}>{mode}</td>
                     <td style={td}>{unit}</td>
-                    {holders.map((h: any) => {
-                      const hr = keyRows.find((r: any) => r.holder_no === h)
-                      return (
-                        <td key={h} style={{ ...td, textAlign: 'center' }}>
-                          {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
-                        </td>
-                      )
-                    })}
+                    {categoryGroups.flatMap((g, gi) =>
+                      g.holders.map((h, hi) => {
+                        const hr = keyRows.find((r: any) => r.holder_no === h.key)
+                        return (
+                          <td key={`v-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
+                            {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                          </td>
+                        )
+                      })
+                    )}
                     <td style={td}>{keyRows.find((r: any) => r.note)?.note || '-'}</td>
                   </tr>
                 )
@@ -338,7 +405,7 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
               <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
                 {tabLoading
                   ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
-                  : <TabTable tab={activeTab} rows={tabData} />}
+                  : <TabTable tab={activeTab} rows={tabData} equipmentNo={r.no} />}
               </div>
             </div>
           </td>
