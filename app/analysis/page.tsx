@@ -60,6 +60,9 @@ export default function AnalysisPage() {
   const [scratchByEq, setScratchByEq] = useState<any[]>([])
   const [maintenanceByEq, setMaintenanceByEq] = useState<any[]>([])
   const [alarmByEq, setAlarmByEq] = useState<any[]>([])
+  const [monthlyTrend, setMonthlyTrend] = useState<any[]>([])
+  const [punchVsWeld, setPunchVsWeld] = useState({ punch: 0, weld: 0 })
+  const [holderRanking, setHolderRanking] = useState<any[]>([])
   const [topN, setTopN] = useState(10)
 
   // 기간 설정 - 기본값: 최근 3개월
@@ -76,7 +79,7 @@ export default function AnalysisPage() {
     setLoading(true)
     const [eqRes, alRes, mnRes, scRes] = await Promise.all([
       supabase.from('equipment').select('no, name'),
-      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date')
+      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date, holder_no')
         .gte('date', dateFrom).lte('date', dateTo),
       supabase.from('maintenance').select('equipment_no, maintenance_date')
         .gte('maintenance_date', dateFrom).lte('maintenance_date', dateTo + 'T23:59:59'),
@@ -85,10 +88,31 @@ export default function AnalysisPage() {
     ])
     const eqData = eqRes.data || []
 
+    const alarmData = alRes.data || []
     const alarmMap: any = {}
-    ;(alRes.data || []).forEach((r: any) => {
+    let totalPunch = 0, totalWeld = 0
+    const monthMap: Record<string, { punch: number; weld: number }> = {}
+    const holderMap: Record<string, number> = {}
+    alarmData.forEach((r: any) => {
       alarmMap[r.equipment_no] = (alarmMap[r.equipment_no] || 0) + (r.punch_alarm||0) + (r.weld_alarm||0)
+      totalPunch += (r.punch_alarm||0)
+      totalWeld += (r.weld_alarm||0)
+      // 월별 추이
+      const month = (r.date||'').slice(0,7) // YYYY-MM
+      if (month) {
+        if (!monthMap[month]) monthMap[month] = { punch: 0, weld: 0 }
+        monthMap[month].punch += (r.punch_alarm||0)
+        monthMap[month].weld += (r.weld_alarm||0)
+      }
+      // 홀더별 불량
+      if (r.holder_no && ((r.punch_alarm||0) + (r.weld_alarm||0) > 0)) {
+        const key = `#${String(r.equipment_no).padStart(2,'0')} ${r.holder_no}`
+        holderMap[key] = (holderMap[key]||0) + (r.punch_alarm||0) + (r.weld_alarm||0)
+      }
     })
+    setPunchVsWeld({ punch: totalPunch, weld: totalWeld })
+    setMonthlyTrend(Object.entries(monthMap).sort((a,b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v, total: v.punch + v.weld })))
+    setHolderRanking(Object.entries(holderMap).sort((a,b) => b[1] - a[1]).slice(0, 10).map(([label, count]) => ({ label, count })))
     setAlarmByEq(eqData.filter((e: any) => alarmMap[e.no] > 0)
       .map((e: any) => ({ no: e.no, name: e.name, count: alarmMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
@@ -172,6 +196,7 @@ export default function AnalysisPage() {
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>로딩 중...</div>
           ) : (
+            <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
               <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -206,6 +231,112 @@ export default function AnalysisPage() {
                 <BarChart items={alarmSlice} color="var(--accent-red)" max={alarmSlice[0]?.count || 1} />
               </div>
             </div>
+
+            {/* 2행: 월별 추이 + 펀칭 vs 융착 + 홀더별 불량 TOP 10 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 16, marginTop: 16 }}>
+              {/* 월별 추이 차트 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>월별 알람 추이</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>펀칭/융착 월별 발생 건수</div>
+                </div>
+                <div style={{ padding: 16 }}>
+                  {monthlyTrend.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
+                  ) : (
+                    <div>
+                      {/* 간단 바 차트 */}
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120, marginBottom: 8 }}>
+                        {monthlyTrend.map(m => {
+                          const maxVal = Math.max(...monthlyTrend.map(t => t.total)) || 1
+                          const punchH = (m.punch / maxVal) * 100
+                          const weldH = (m.weld / maxVal) * 100
+                          return (
+                            <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>{m.total}</div>
+                              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <div style={{ height: Math.max(punchH, 2), background: 'var(--accent-blue)', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
+                                <div style={{ height: Math.max(weldH, 2), background: 'var(--accent-red)', borderRadius: '0 0 2px 2px', transition: 'height 0.3s' }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {monthlyTrend.map(m => (
+                          <div key={m.month} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)' }}>{m.month.slice(5)}월</div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                          <div style={{ width: 10, height: 10, background: 'var(--accent-blue)', borderRadius: 2 }} />
+                          <span style={{ color: 'var(--text-muted)' }}>펀칭</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                          <div style={{ width: 10, height: 10, background: 'var(--accent-red)', borderRadius: 2 }} />
+                          <span style={{ color: 'var(--text-muted)' }}>융착</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 펀칭 vs 융착 비교 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>펀칭 vs 융착</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>불량 유형 비교</div>
+                </div>
+                <div style={{ padding: 24, textAlign: 'center' }}>
+                  {punchVsWeld.punch + punchVsWeld.weld === 0 ? (
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+                        <div style={{ width: `${(punchVsWeld.punch / (punchVsWeld.punch + punchVsWeld.weld)) * 100}%`, background: 'var(--accent-blue)', transition: 'width 0.5s' }} />
+                        <div style={{ flex: 1, background: 'var(--accent-red)' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>펀칭불량</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-blue)' }}>{punchVsWeld.punch}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{punchVsWeld.punch + punchVsWeld.weld > 0 ? Math.round((punchVsWeld.punch / (punchVsWeld.punch + punchVsWeld.weld)) * 100) : 0}%</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>융착불량</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-red)' }}>{punchVsWeld.weld}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{punchVsWeld.punch + punchVsWeld.weld > 0 ? Math.round((punchVsWeld.weld / (punchVsWeld.punch + punchVsWeld.weld)) * 100) : 0}%</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 홀더별 불량 TOP 10 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>홀더별 불량 TOP 10</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>어떤 홀더에서 불량이 많은지</div>
+                </div>
+                <div style={{ padding: '12px 16px' }}>
+                  {holderRanking.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
+                  ) : holderRanking.map((item, i) => (
+                    <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span className="badge badge-gray" style={{ width: 20, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <div style={{ flex: 1, height: 18, background: 'var(--bg-hover)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${(item.count / holderRanking[0].count) * 100}%`, background: 'var(--accent-amber)', borderRadius: 4 }} />
+                        <div style={{ position: 'absolute', left: 6, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 9, color: 'var(--text-primary)' }}>{item.label}</div>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-amber)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right' }}>{item.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            </>
           )}
         </div>
       </div>
