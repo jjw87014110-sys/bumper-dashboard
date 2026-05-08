@@ -99,6 +99,18 @@ export default function DashboardPage() {
       const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
       setCompletedDates(savedCompleted)
       loadTodoForDate(todayKey)
+      // DB에서 캘린더 이벤트 로드 (localStorage보다 우선)
+      supabase.from('calendar_events').select('*').then(({ data }) => {
+        if (data && data.length > 0) {
+          const dbEvents: Record<string, string[]> = {}
+          data.forEach((r: any) => {
+            if (!dbEvents[r.date]) dbEvents[r.date] = []
+            dbEvents[r.date].push(r.label)
+          })
+          setEvents(dbEvents)
+          localStorage.setItem('cal_events', JSON.stringify(dbEvents))
+        }
+      })
     } catch {}
 
     // 폭죽 효과
@@ -110,14 +122,33 @@ export default function DashboardPage() {
   }, [])
 
   function loadTodoForDate(dateKey: string) {
-    try {
-      const saved = JSON.parse(localStorage.getItem('todo_' + dateKey) || '{}')
-      setChecked(saved)
-      const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
-      setCustomTodos(savedCustomTodos[dateKey] || [])
-      const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + dateKey) || '{}')
-      setCustomChecked(savedCustomChecked)
-    } catch {}
+    supabase.from('todo_checks').select('*').eq('date', dateKey).then(({ data, error }) => {
+      if (!error && data && data.length > 0) {
+        const newChecked: Record<string, boolean> = {}
+        const newCustom: string[] = []
+        const newCustomChecked: Record<string, boolean> = {}
+        data.forEach((r: any) => {
+          if (r.is_custom) {
+            if (!newCustom.includes(r.todo_key)) newCustom.push(r.todo_key)
+            if (r.checked) newCustomChecked[r.todo_key] = true
+          } else {
+            if (r.checked) newChecked[r.todo_key] = true
+          }
+        })
+        setChecked(newChecked)
+        setCustomTodos(newCustom)
+        setCustomChecked(newCustomChecked)
+      } else {
+        try {
+          const saved = JSON.parse(localStorage.getItem('todo_' + dateKey) || '{}')
+          setChecked(saved)
+          const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+          setCustomTodos(savedCustomTodos[dateKey] || [])
+          const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + dateKey) || '{}')
+          setCustomChecked(savedCustomChecked)
+        } catch {}
+      }
+    })
   }
 
   function handleCalendarDateClick(dateStr: string) {
@@ -130,14 +161,14 @@ export default function DashboardPage() {
     setLoading(true)
     const [eq, al, mn, sc] = await Promise.all([
       supabase.from('equipment').select('*'),
-      supabase.from('alarm').select('punch_alarm, weld_alarm'),
+      supabase.from('alarm').select('punch_alarm, weld_alarm, date').gte('date', `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`),
       supabase.from('maintenance').select('id'),
       supabase.from('scratch').select('id'),
     ])
     const eqData = eq.data || []
     setStats({
       equipment: eqData.length,
-      alarm: (al.data||[]).reduce((s:number,r:any)=>s+(r.punch_alarm||0)+(r.weld_alarm||0),0),
+      alarm: (al.data||[]).filter((r:any)=>(r.punch_alarm||0)+(r.weld_alarm||0)>0).length,
       maintenance: mn.data?.length||0,
       scratch: sc.data?.length||0,
     })
@@ -148,10 +179,12 @@ export default function DashboardPage() {
   }
 
   function toggleTodo(item: typeof DAILY_TODOS[0]) {
-    if (selectedDate !== todayKey) return // 오늘만 체크 가능
+    if (selectedDate !== todayKey) return
     const next = { ...checked, [item.key]: !checked[item.key] }
     setChecked(next)
     localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
+    // DB에 upsert
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
     updateCompleted(item.label, !checked[item.key], todayKey)
     if (item.key === '아이마킹' && !checked[item.key]) {
       const eqNo = getImarkingSchedule(today)
@@ -164,6 +197,7 @@ export default function DashboardPage() {
     const next = { ...customChecked, [label]: !customChecked[label] }
     setCustomChecked(next)
     localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
     updateCompleted(label, !customChecked[label], todayKey)
   }
 
@@ -183,6 +217,10 @@ export default function DashboardPage() {
     const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
     setEvents(next)
     localStorage.setItem('cal_events', JSON.stringify(next))
+    // DB에 이벤트 저장
+    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed }]).then(() => {})
+    // 커스텀 TODO도 등록
+    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
     const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
     const dayTodos: string[] = savedCustomTodos[eventDate]||[]
     if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
@@ -233,7 +271,7 @@ export default function DashboardPage() {
 
   const kpiCards = [
     { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
-    { label: '알람 건수', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
+    { label: '이번 달 알람', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
     { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)' },
     { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)' },
   ]
