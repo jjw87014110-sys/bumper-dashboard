@@ -124,7 +124,7 @@ function getDashboardVibe(): DashboardVibe {
     ]
     const msg = weekendMsgs[today.getDate() % weekendMsgs.length]
     return {
-      type: 'weekend', emoji: '🎉', fireworkType: 'celebration', showFireworks: true,
+      type: 'weekend', emoji: '🎉', fireworkType: 'none', showFireworks: false,
       ...msg,
       gradient: 'linear-gradient(135deg, rgba(107,203,119,0.15), rgba(59,126,248,0.1))',
       borderColor: 'var(--accent-green)', titleColor: 'var(--accent-green)',
@@ -134,7 +134,7 @@ function getDashboardVibe(): DashboardVibe {
   // 내일 공휴일
   if (tomorrowIsOff) {
     return {
-      type: 'holiday', emoji: '🎊', fireworkType: 'celebration', showFireworks: true,
+      type: 'holiday', emoji: '🎊', fireworkType: 'none', showFireworks: false,
       title: `내일 ${tomorrowReason}! 쉬는 날 get 🙌`,
       subtitle: '갑자기 찾아온 행복... 오늘 업무 빠르게 정리하고 칼퇴!',
       gradient: 'linear-gradient(135deg, rgba(255,180,0,0.15), rgba(204,93,232,0.1))',
