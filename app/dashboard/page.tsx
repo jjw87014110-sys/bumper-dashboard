@@ -49,6 +49,116 @@ function getTomorrowInfo(): { isOff: boolean; reason: string } {
   return { isOff: false, reason: '' }
 }
 
+// 월급날 체크 (10일, 25일 - 주말/공휴일이면 전날로 앞당겨짐)
+function isPayday(date: Date): boolean {
+  const ds = toLocalDate(date)
+  const month = date.getMonth(), year = date.getFullYear()
+  for (const payday of [10, 25]) {
+    // 해당 월의 10/25일부터 거꾸로 평일 찾기
+    let d = new Date(year, month, payday)
+    while (d.getDay() === 0 || d.getDay() === 6 || KR_HOLIDAYS[toLocalDate(d)]) {
+      d.setDate(d.getDate() - 1)
+    }
+    if (toLocalDate(d) === ds) return true
+  }
+  return false
+}
+
+type VibeType = 'weekend' | 'holiday' | 'payday' | 'payday_weekend' | 'weekday'
+interface DashboardVibe {
+  type: VibeType
+  emoji: string
+  title: string
+  subtitle: string
+  gradient: string
+  borderColor: string
+  titleColor: string
+  showFireworks: boolean
+  fireworkType: 'celebration' | 'money' | 'none'
+}
+
+function getDashboardVibe(): DashboardVibe {
+  const today = new Date()
+  const todayWd = today.getDay() // 0=일 ~ 6=토
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate()+1)
+  const tomorrowWd = tomorrow.getDay()
+  const tomorrowStr = toLocalDate(tomorrow)
+  const tomorrowIsOff = tomorrowWd === 0 || tomorrowWd === 6 || !!KR_HOLIDAYS[tomorrowStr]
+  const tomorrowReason = tomorrowWd === 0 ? '일요일' : tomorrowWd === 6 ? '토요일' : KR_HOLIDAYS[tomorrowStr] || ''
+  const todayIsPayday = isPayday(today)
+
+  // 월급날 + 내일 쉬는 날 (대박 콤보)
+  if (todayIsPayday && tomorrowIsOff) {
+    return {
+      type: 'payday_weekend', emoji: '🤑', fireworkType: 'money', showFireworks: true,
+      title: '월급날인데 내일 쉰다고?? 인생 뭐 있어 💸🎉',
+      subtitle: '통장 잔고 확인하고 퇴근 후 자축하세요 ㅋㅋ',
+      gradient: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,107,0.15))',
+      borderColor: 'var(--accent-amber)', titleColor: '#f59f00',
+    }
+  }
+
+  // 월급날
+  if (todayIsPayday) {
+    const paydayMsgs = [
+      { title: '월급 들어왔다 💰 잠깐만 행복하자', subtitle: '통장을 스쳐가는 월급… 그래도 오늘만큼은 부자' },
+      { title: '드디어 월급날 🤑 텅장이 잠깐 통장으로', subtitle: '카드값 빠지기 전이 제일 행복한 순간' },
+      { title: '월급이 들어왔습니다 💸 잔고 확인 금지', subtitle: '오늘 하루만 부자인 척 하기 ㅋㅋ' },
+    ]
+    const msg = paydayMsgs[today.getDate() % paydayMsgs.length]
+    return {
+      type: 'payday', emoji: '💰', fireworkType: 'money', showFireworks: true,
+      ...msg,
+      gradient: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.1))',
+      borderColor: '#f59f00', titleColor: '#f59f00',
+    }
+  }
+
+  // 내일 주말
+  if (tomorrowIsOff && (tomorrowWd === 0 || tomorrowWd === 6)) {
+    const weekendMsgs = [
+      { title: '내일 주말이다!! 칼퇴 준비 완료 🏃‍♂️💨', subtitle: '오늘 하루만 버티면 자유다' },
+      { title: '내일부터 주말 🎮 오늘만 참자', subtitle: '퇴근 카운트다운 시작 3... 2... 1...' },
+      { title: '주말이 코앞 🎉 오늘의 나 수고했다', subtitle: '내일은 알람 없는 아침이 기다리고 있음' },
+    ]
+    const msg = weekendMsgs[today.getDate() % weekendMsgs.length]
+    return {
+      type: 'weekend', emoji: '🎉', fireworkType: 'celebration', showFireworks: true,
+      ...msg,
+      gradient: 'linear-gradient(135deg, rgba(107,203,119,0.15), rgba(59,126,248,0.1))',
+      borderColor: 'var(--accent-green)', titleColor: 'var(--accent-green)',
+    }
+  }
+
+  // 내일 공휴일
+  if (tomorrowIsOff) {
+    return {
+      type: 'holiday', emoji: '🎊', fireworkType: 'celebration', showFireworks: true,
+      title: `내일 ${tomorrowReason}! 쉬는 날 get 🙌`,
+      subtitle: '갑자기 찾아온 행복... 오늘 업무 빠르게 정리하고 칼퇴!',
+      gradient: 'linear-gradient(135deg, rgba(255,180,0,0.15), rgba(204,93,232,0.1))',
+      borderColor: 'var(--accent-amber)', titleColor: 'var(--accent-amber)',
+    }
+  }
+
+  // 평일 (월~목 조언)
+  const weekdayMsgs: Record<number, { emoji: string; title: string; subtitle: string }> = {
+    1: { emoji: '💪', title: '월요일은 시작이 반 🔥 가볍게 워밍업!', subtitle: '커피 한 잔 하고 오늘 할 일 정리부터 하죠' },
+    2: { emoji: '🏃', title: '화요일, 슬슬 페이스 올려봅시다 🚀', subtitle: '어제보다 오늘이 더 낫다는 마인드로' },
+    3: { emoji: '🐫', title: '수요일 = 낙타의 날 🐪 이미 반 왔다', subtitle: '주간의 고비를 넘기면 내리막길만 남았음' },
+    4: { emoji: '⚡', title: '목요일, 내일이면 금요일이다!!', subtitle: '라스트 스퍼트 🏁 조금만 더 화이팅' },
+    5: { emoji: '🎉', title: '불금이다!! 오늘만 버티면 주말 🎊', subtitle: '이미 마음은 퇴근... 하지만 마무리는 깔끔하게' },
+  }
+  const msg = weekdayMsgs[todayWd] || { emoji: '☀️', title: '오늘도 화이팅!', subtitle: '좋은 하루 보내세요' }
+  return {
+    type: 'weekday', emoji: msg.emoji, fireworkType: 'none', showFireworks: false,
+    title: msg.title, subtitle: msg.subtitle,
+    gradient: 'linear-gradient(135deg, rgba(59,126,248,0.08), rgba(32,201,151,0.06))',
+    borderColor: 'var(--border)', titleColor: 'var(--text-primary)',
+  }
+}
+
 const DAILY_TODOS = [
   { key: '변동점관리', label: '변동점관리', regular: true },
   { key: '제품융착관리', label: '제품 융착관리', regular: true },
@@ -83,9 +193,9 @@ export default function DashboardPage() {
   const [eventDate, setEventDate] = useState('')
   const [eventText, setEventText] = useState('')
 
-  // 폭죽
+  // 분위기
   const [showFireworks, setShowFireworks] = useState(false)
-  const tomorrowInfo = getTomorrowInfo()
+  const vibe = getDashboardVibe()
 
   useEffect(() => {
     fetchData()
@@ -113,8 +223,8 @@ export default function DashboardPage() {
       })
     } catch {}
 
-    // 폭죽 효과
-    if (tomorrowInfo.isOff) {
+    // 폭죽/돈 효과
+    if (vibe.showFireworks) {
       setTimeout(() => startFireworks(), 800)
     }
 
@@ -282,7 +392,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-      {/* Canvas 폭죽 */}
+      {/* Canvas 이펙트 (축하 폭죽 or 돈 폭죽) */}
       {showFireworks && (
         <canvas
           ref={(canvas) => {
@@ -294,106 +404,80 @@ export default function DashboardPage() {
             const W = canvas.width, H = canvas.height
             const particles: any[] = []
             const rockets: any[] = []
-            const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997','#f06595','#fcc419','#74c0fc','#a9e34b','#e599f7']
+            const isMoney = vibe.fireworkType === 'money'
+            const celebrationColors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997','#f06595','#fcc419','#74c0fc','#a9e34b','#e599f7']
+            const moneyColors = ['#ffd700','#ffec3d','#f59f00','#fab005','#ffe066','#fff3bf','#82c91e','#69db7c']
+            const colors = isMoney ? moneyColors : celebrationColors
+            const emojis = isMoney ? ['💰','💵','💸','🤑','💳','🪙'] : ['🎉','✨','🎊','⭐','🌟','💫']
             let frame = 0
-            // 로켓 발사 예약
+            const textParticles: any[] = []
             const launches = [
-              {x:W*0.2,t:0},{x:W*0.5,t:18},{x:W*0.8,t:36},
-              {x:W*0.35,t:60},{x:W*0.65,t:78},{x:W*0.45,t:100},
-              {x:W*0.25,t:120},{x:W*0.75,t:135},{x:W*0.5,t:155},
+              {x:W*0.2,t:0},{x:W*0.5,t:15},{x:W*0.8,t:30},
+              {x:W*0.35,t:50},{x:W*0.65,t:65},{x:W*0.45,t:85},
+              {x:W*0.25,t:105},{x:W*0.75,t:120},{x:W*0.5,t:140},
             ]
             function explode(x: number, y: number) {
-              const count = 80 + Math.floor(Math.random()*40)
+              const count = 70 + Math.floor(Math.random()*30)
               const baseColor = colors[Math.floor(Math.random()*colors.length)]
               for (let i=0;i<count;i++) {
                 const angle = (Math.PI*2/count)*i + (Math.random()-0.5)*0.3
-                const speed = 2 + Math.random()*6
-                const life = 60 + Math.floor(Math.random()*40)
+                const speed = 2 + Math.random()*5
+                const life = 50 + Math.floor(Math.random()*30)
                 const size = 1.5 + Math.random()*2.5
                 const c = Math.random()>0.3 ? baseColor : colors[Math.floor(Math.random()*colors.length)]
                 particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life,maxLife:life,size,color:c,trail:[] as {x:number,y:number}[]})
               }
-              // 글리터
-              for (let i=0;i<20;i++) {
+              // 이모지 파티클
+              for (let i=0;i<6;i++) {
                 const angle = Math.random()*Math.PI*2
-                const speed = 1+Math.random()*3
-                particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-1,life:80+Math.floor(Math.random()*40),maxLife:120,size:1,color:'#ffd93d',trail:[]})
+                const speed = 1.5+Math.random()*3
+                textParticles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-2,life:80,maxLife:80,emoji:emojis[Math.floor(Math.random()*emojis.length)],size:14+Math.random()*10})
               }
             }
             function loop() {
               ctx!.globalCompositeOperation = 'source-over'
-              ctx!.fillStyle = 'rgba(0,0,0,0.15)'
+              ctx!.fillStyle = 'rgba(0,0,0,0.12)'
               ctx!.fillRect(0,0,W,H)
               ctx!.globalCompositeOperation = 'lighter'
-              // 로켓 발사
               launches.forEach(l => {
-                if (frame === l.t) {
-                  rockets.push({x:l.x, y:H, vy:-12-Math.random()*4, targetY:H*0.2+Math.random()*H*0.3})
-                }
+                if (frame === l.t) rockets.push({x:l.x,y:H,vy:-11-Math.random()*4,targetY:H*0.15+Math.random()*H*0.3})
               })
-              // 로켓 업데이트
               for (let i=rockets.length-1;i>=0;i--) {
                 const r = rockets[i]
                 r.y += r.vy
-                // 궤적
-                ctx!.beginPath()
-                ctx!.arc(r.x, r.y, 2, 0, Math.PI*2)
-                ctx!.fillStyle = '#ffd93d'
-                ctx!.fill()
-                // 꼬리
-                for (let t=0;t<3;t++) {
-                  ctx!.beginPath()
-                  ctx!.arc(r.x+(Math.random()-0.5)*3, r.y+t*8, 1.5-t*0.4, 0, Math.PI*2)
-                  ctx!.fillStyle = `rgba(255,217,61,${0.5-t*0.15})`
-                  ctx!.fill()
-                }
-                if (r.y <= r.targetY) {
-                  explode(r.x, r.y)
-                  rockets.splice(i,1)
-                }
+                ctx!.beginPath(); ctx!.arc(r.x,r.y,2,0,Math.PI*2)
+                ctx!.fillStyle = isMoney ? '#ffd700' : '#ffd93d'; ctx!.fill()
+                for (let t=0;t<3;t++) { ctx!.beginPath(); ctx!.arc(r.x+(Math.random()-0.5)*3,r.y+t*7,1.5-t*0.4,0,Math.PI*2); ctx!.fillStyle=`rgba(255,217,61,${0.5-t*0.15})`; ctx!.fill() }
+                if (r.y<=r.targetY) { explode(r.x,r.y); rockets.splice(i,1) }
               }
-              // 파티클 업데이트
               for (let i=particles.length-1;i>=0;i--) {
                 const p = particles[i]
-                p.trail.push({x:p.x, y:p.y})
-                if (p.trail.length > 6) p.trail.shift()
-                p.vx *= 0.98
-                p.vy *= 0.98
-                p.vy += 0.04 // 중력
-                p.x += p.vx
-                p.y += p.vy
-                p.life--
-                const alpha = p.life / p.maxLife
-                // 잔상
-                p.trail.forEach((t: {x:number,y:number}, ti: number) => {
-                  const ta = (ti/p.trail.length) * alpha * 0.4
-                  ctx!.beginPath()
-                  ctx!.arc(t.x, t.y, p.size*0.6, 0, Math.PI*2)
-                  ctx!.fillStyle = p.color + Math.floor(ta*255).toString(16).padStart(2,'0')
-                  ctx!.fill()
-                })
-                // 파티클
-                ctx!.beginPath()
-                ctx!.arc(p.x, p.y, p.size * alpha, 0, Math.PI*2)
-                ctx!.fillStyle = p.color + Math.floor(alpha*255).toString(16).padStart(2,'0')
-                ctx!.fill()
-                // 빛 번짐
-                if (alpha > 0.5) {
-                  ctx!.beginPath()
-                  ctx!.arc(p.x, p.y, p.size*3*alpha, 0, Math.PI*2)
-                  ctx!.fillStyle = p.color + '18'
-                  ctx!.fill()
-                }
-                if (p.life <= 0) particles.splice(i,1)
+                p.trail.push({x:p.x,y:p.y}); if (p.trail.length>5) p.trail.shift()
+                p.vx*=0.98; p.vy*=0.98; p.vy+=0.04; p.x+=p.vx; p.y+=p.vy; p.life--
+                const alpha = p.life/p.maxLife
+                p.trail.forEach((t:{x:number,y:number},ti:number) => { const ta=(ti/p.trail.length)*alpha*0.4; ctx!.beginPath(); ctx!.arc(t.x,t.y,p.size*0.5,0,Math.PI*2); ctx!.fillStyle=p.color+Math.floor(ta*255).toString(16).padStart(2,'0'); ctx!.fill() })
+                ctx!.beginPath(); ctx!.arc(p.x,p.y,p.size*alpha,0,Math.PI*2); ctx!.fillStyle=p.color+Math.floor(alpha*255).toString(16).padStart(2,'0'); ctx!.fill()
+                if (alpha>0.5) { ctx!.beginPath(); ctx!.arc(p.x,p.y,p.size*3*alpha,0,Math.PI*2); ctx!.fillStyle=p.color+'15'; ctx!.fill() }
+                if (p.life<=0) particles.splice(i,1)
               }
+              // 이모지 파티클 렌더링
+              ctx!.globalCompositeOperation = 'source-over'
+              for (let i=textParticles.length-1;i>=0;i--) {
+                const tp = textParticles[i]
+                tp.vy+=0.06; tp.x+=tp.vx; tp.y+=tp.vy; tp.life--
+                const alpha = tp.life/tp.maxLife
+                ctx!.globalAlpha = alpha
+                ctx!.font = `${tp.size}px sans-serif`
+                ctx!.fillText(tp.emoji, tp.x-tp.size/2, tp.y+tp.size/2)
+                if (tp.life<=0) textParticles.splice(i,1)
+              }
+              ctx!.globalAlpha = 1
               frame++
-              if (frame < 280) requestAnimationFrame(loop)
+              if (frame < 260) requestAnimationFrame(loop)
             }
-            ctx.fillStyle = 'rgba(0,0,0,0.01)'
-            ctx.fillRect(0,0,W,H)
-            loop()
+            ctx.fillStyle = 'rgba(0,0,0,0.01)'; ctx.fillRect(0,0,W,H); loop()
           }}
-          style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999 }}
+          style={{ position:'fixed',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:9999 }}
         />
       )}
 
@@ -411,17 +495,19 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 내일 휴일 배너 */}
-        {tomorrowInfo.isOff && (
-          <div style={{ background:'linear-gradient(135deg, rgba(255,180,0,0.15), rgba(59,126,248,0.1))', borderBottom:'1px solid var(--accent-amber)', padding:'12px 28px', display:'flex', alignItems:'center', gap:12, position:'relative', overflow:'hidden' }}>
-            <div style={{ fontSize:22 }}>🎉</div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--accent-amber)' }}>내일은 {tomorrowInfo.reason}! 쉬는 날이에요 🙌</div>
-              <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>오늘 업무 마무리 잘 하고 푹 쉬세요!</div>
-            </div>
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft:'auto' }} onClick={startFireworks}>🎆 폭죽!</button>
+        {/* MZ 바이브 배너 (항상 표시) */}
+        <div style={{ background:vibe.gradient, borderBottom:`1px solid ${vibe.borderColor}`, padding:'12px 28px', display:'flex', alignItems:'center', gap:12, position:'relative', overflow:'hidden' }}>
+          <div style={{ fontSize:24 }}>{vibe.emoji}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:vibe.titleColor }}>{vibe.title}</div>
+            <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>{vibe.subtitle}</div>
           </div>
-        )}
+          {vibe.showFireworks && (
+            <button className="btn btn-ghost btn-sm" onClick={startFireworks}>
+              {vibe.fireworkType === 'money' ? '💸 돈 터뜨리기!' : '🎆 축하!'}
+            </button>
+          )}
+        </div>
 
         <div className="content-area">
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
