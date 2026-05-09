@@ -63,6 +63,7 @@ export default function AnalysisPage() {
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([])
   const [punchVsWeld, setPunchVsWeld] = useState({ punch: 0, weld: 0 })
   const [holderRanking, setHolderRanking] = useState<any[]>([])
+  const [weekdayStats, setWeekdayStats] = useState<any[]>([])
   const [topN, setTopN] = useState(10)
 
   // 기간 설정 - 기본값: 최근 3개월
@@ -114,6 +115,21 @@ export default function AnalysisPage() {
     setPunchVsWeld({ punch: totalPunch, weld: totalWeld })
     setMonthlyTrend(Object.entries(monthMap).sort((a,b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v, total: v.punch + v.weld })))
     setHolderRanking(Object.entries(holderMap).sort((a,b) => b[1] - a[1]).slice(0, 10).map(([label, count]) => ({ label, count })))
+    // 요일별 불량
+    const wdWeld: number[] = [0,0,0,0,0,0,0]
+    const wdPunch: number[] = [0,0,0,0,0,0,0]
+    const wdDays: number[] = [0,0,0,0,0,0,0]
+    const allDatesSet = new Set<string>()
+    alarmData.forEach((r: any) => { if (r.date) allDatesSet.add(r.date) })
+    allDatesSet.forEach(d => { const wd = new Date(d+'T12:00:00').getDay(); const idx = wd===0?6:wd-1; wdDays[idx]++ })
+    alarmData.forEach((r: any) => {
+      if (!r.date) return
+      const wd = new Date(r.date+'T12:00:00').getDay(); const idx = wd===0?6:wd-1
+      if ((r.punch_alarm||0)<=50) wdPunch[idx]+=(r.punch_alarm||0)
+      if ((r.weld_alarm||0)<=50) wdWeld[idx]+=(r.weld_alarm||0)
+    })
+    const wdNames = ['월','화','수','목','금','토','일']
+    setWeekdayStats(wdNames.map((name,i) => ({ name, weld: wdDays[i]>0 ? Math.round(wdWeld[i]/wdDays[i]*10)/10 : 0, punch: wdDays[i]>0 ? Math.round(wdPunch[i]/wdDays[i]*10)/10 : 0 })))
     setAlarmByEq(eqData.filter((e: any) => alarmMap[e.no] > 0)
       .map((e: any) => ({ no: e.no, name: e.name, count: alarmMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
@@ -335,6 +351,110 @@ export default function AnalysisPage() {
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-amber)', fontFamily: 'JetBrains Mono, monospace', width: 24, textAlign: 'right' }}>{item.count}</div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 3행: 요일별 불량 + 인사이트 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+              {/* 요일별 불량 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>📊 요일별 불량 (일평균)</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>어떤 요일에 불량이 많은지</div>
+                </div>
+                <div style={{ padding: 16 }}>
+                  {weekdayStats.length === 0 ? (
+                    <div className="empty-state">데이터 없음</div>
+                  ) : (() => {
+                    const maxWd = Math.max(...weekdayStats.map((d: any) => Math.max(d.weld, d.punch)), 1)
+                    const peak = weekdayStats.reduce((a: any, b: any) => (a.weld + a.punch) > (b.weld + b.punch) ? a : b)
+                    return weekdayStats.map((d: any) => (
+                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ width: 16, fontSize: 11, color: d.name === peak.name ? 'var(--accent-red)' : 'var(--text-muted)', fontWeight: d.name === peak.name ? 700 : 400, textAlign: 'right' }}>{d.name}</span>
+                        <div style={{ flex: 1, display: 'flex', gap: 2 }}>
+                          <div style={{ height: 16, width: `${(d.weld/maxWd)*100}%`, background: 'var(--accent-red)', borderRadius: '3px 0 0 3px', minWidth: d.weld > 0 ? 4 : 0, display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                            {d.weld > 0 && <span style={{ fontSize: 8, color: 'white', fontFamily: 'JetBrains Mono, monospace' }}>{d.weld}</span>}
+                          </div>
+                          <div style={{ height: 16, width: `${(d.punch/maxWd)*100}%`, background: 'var(--accent-blue)', borderRadius: '0 3px 3px 0', minWidth: d.punch > 0 ? 4 : 0, display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                            {d.punch > 0 && <span style={{ fontSize: 8, color: 'white', fontFamily: 'JetBrains Mono, monospace' }}>{d.punch}</span>}
+                          </div>
+                        </div>
+                        {d.name === peak.name && <span style={{ fontSize: 9 }}>🔥</span>}
+                      </div>
+                    ))
+                  })()}
+                  <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12, fontSize: 10, color: 'var(--text-muted)' }}>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--accent-red)', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />융착</span>
+                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--accent-blue)', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />펀칭</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 인사이트 */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>🔍 AI 분석 인사이트</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>데이터 기반 자동 분석 결과</div>
+                </div>
+                <div style={{ padding: 16 }}>
+                  {alarmByEq.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--accent-red-dim)', color: 'var(--accent-red)', fontWeight: 600 }}>집중 관리</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                        <strong style={{ color: 'var(--accent-amber)' }}>#{String(alarmByEq[0]?.no).padStart(2,'0')} 설비</strong>가 전체 알람의 <strong style={{ color: 'var(--accent-amber)' }}>{punchVsWeld.punch + punchVsWeld.weld > 0 ? Math.round(alarmByEq[0]?.count / (punchVsWeld.punch + punchVsWeld.weld) * 100) : 0}%</strong> 차지. 예방정비 주기 단축 검토 필요.
+                      </div>
+                    </div>
+                  )}
+                  {weekdayStats.length > 0 && (() => {
+                    const peak = weekdayStats.reduce((a: any, b: any) => (a.weld + a.punch) > (b.weld + b.punch) ? a : b)
+                    const avg = weekdayStats.reduce((s: number, d: any) => s + d.weld + d.punch, 0) / 7
+                    return peak.weld + peak.punch > avg * 1.5 ? (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--accent-amber-dim)', color: 'var(--accent-amber)', fontWeight: 600 }}>요일 패턴</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                          <strong style={{ color: 'var(--accent-amber)' }}>{peak.name}요일</strong> 불량이 다른 요일 대비 높음. 주간 피로 누적 또는 특정 생산 스케줄 확인 필요.
+                        </div>
+                      </div>
+                    ) : null
+                  })()}
+                  {monthlyTrend.length >= 2 && (() => {
+                    const first = monthlyTrend[0]
+                    const last = monthlyTrend[monthlyTrend.length - 1]
+                    const peak = monthlyTrend.reduce((a: any, b: any) => a.total > b.total ? a : b)
+                    return (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)', fontWeight: 600 }}>월별 추이</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                          <strong style={{ color: 'var(--accent-amber)' }}>{peak.month.slice(5)}월</strong>이 가장 높음 ({peak.total}건). {last.total < peak.total ? '이후 감소 추세로 개선 중.' : '주의 관찰 필요.'}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--accent-teal-dim)', color: 'var(--accent-teal)', fontWeight: 600 }}>환절기 주의</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                      환절기(3~4월)는 일교차가 커 융착 품질에 영향. 공장 내부 온습도 관리와 설비 워밍업 시간 확보 권장.
+                    </div>
+                  </div>
+                  {punchVsWeld.punch + punchVsWeld.weld > 0 && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontWeight: 600 }}>불량 유형</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                        융착 <strong style={{ color: 'var(--accent-red)' }}>{Math.round(punchVsWeld.weld / (punchVsWeld.punch + punchVsWeld.weld) * 100)}%</strong> vs 펀칭 <strong style={{ color: 'var(--accent-blue)' }}>{Math.round(punchVsWeld.punch / (punchVsWeld.punch + punchVsWeld.weld) * 100)}%</strong>. {punchVsWeld.weld > punchVsWeld.punch ? '융착 공정 개선이 전체 불량 감소에 효과적.' : '펀칭 공정 점검 우선.'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
