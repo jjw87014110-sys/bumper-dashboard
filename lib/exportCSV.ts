@@ -98,3 +98,39 @@ export function exportMaintenanceData(equipmentName: string, data: any[]) {
   const safeName = equipmentName.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 50)
   exportToCSV(`정비이력_${safeName}_${new Date().toISOString().slice(0,10)}.csv`, headers, rows)
 }
+
+/**
+ * 자재 Export
+ */
+export function exportMaterialsData(equipmentName: string, data: any[]) {
+  const headers = ['품번', '품명', '규격', '제조사', '단위', '수량', '비고']
+  const rows = data.map(r => [
+    r.item_no || '',
+    r.item_name || '',
+    r.spec || '',
+    r.maker || '',
+    r.unit || '',
+    String(r.quantity ?? ''),
+    r.note || '',
+  ])
+  const safeName = equipmentName.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 50)
+  exportToCSV(`자재_${safeName}_${new Date().toISOString().slice(0,10)}.csv`, headers, rows)
+}
+
+/**
+ * 인사정보 Export
+ */
+export function exportStaffData(data: any[]) {
+  const headers = ['이름', '부서', '사번', '그룹웨어ID', '이메일', 'MS ID', '직급', '연차']
+  const rows = data.map(r => [
+    r.name || '',
+    r.department || '',
+    r.employee_no || '',
+    r.groupware_id || '',
+    r.email || '',
+    r.microsoft_id || '',
+    r.position || '',
+    String(r.total_leave ?? ''),
+  ])
+  exportToCSV(`인사정보_${new Date().toISOString().slice(0,10)}.csv`, headers, rows)
+}
