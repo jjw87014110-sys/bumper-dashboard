@@ -42,7 +42,7 @@ function Icon({ name }: { name: string }) {
   }
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const path = usePathname()
   const router = useRouter()
   const { logout } = useAuth()
@@ -64,7 +64,9 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <>
+      {mobileOpen && <div className="sidebar-overlay" onClick={onMobileClose} />}
+      <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
       <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)' }}>
         <div style={{
           display: 'inline-block', background: 'var(--accent-blue)',
@@ -133,5 +135,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   )
 }
