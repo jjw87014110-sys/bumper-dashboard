@@ -77,6 +77,7 @@ export default function AnalysisPage() {
 
   async function fetchData() {
     setLoading(true)
+    try {
     const [eqRes, alRes, mnRes, scRes] = await Promise.all([
       supabase.from('equipment').select('no, name'),
       supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date, holder_no')
@@ -129,6 +130,7 @@ export default function AnalysisPage() {
       .map((e: any) => ({ no: e.no, name: e.name, count: scMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
 
+    } catch (err) { console.error('Analysis fetch error:', err) }
     setLoading(false)
   }
 
