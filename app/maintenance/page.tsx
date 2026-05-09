@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import { exportMaintenanceData } from '@/lib/exportCSV'
 
 export default function MaintenancePage() {
   const { isPinVerified } = useAuth()
@@ -114,6 +115,7 @@ export default function MaintenancePage() {
                     <span className={`badge ${typeColors[selected.type]||'badge-gray'}`}>{selected.type}</span>
                     <span className="badge badge-gray">{selected.model}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{selected.name}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => exportMaintenanceData(selected.name, data)}>↓ Export</button>
                     <button className="btn btn-primary btn-sm" onClick={openAdd}>+ 등록</button>
                   </div>
                 </div>
