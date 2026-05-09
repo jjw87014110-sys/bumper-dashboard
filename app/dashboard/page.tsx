@@ -265,9 +265,13 @@ export default function DashboardPage() {
   for (let d=1;d<=lastDay.getDate();d++) cells.push(new Date(calYear,calMonth,d))
 
   const isToday = selectedDate === todayKey
-  const doneCount = DAILY_TODOS.filter(t=>checked[t.key]).length + customTodos.filter(t=>customChecked[t]).length
-  const totalCount = DAILY_TODOS.length + customTodos.length
-  const selectedImarking = getImarkingSchedule(new Date(selectedDate+'T12:00:00'))
+  const selectedDateObj = new Date(selectedDate+'T12:00:00')
+  const isSelectedFriday = selectedDateObj.getDay() === 5
+  const fridayTodo = { key: '주간보고서', label: '주간 보고서', regular: false }
+  const allTodos = isSelectedFriday ? [...DAILY_TODOS, fridayTodo] : DAILY_TODOS
+  const doneCount = allTodos.filter(t=>checked[t.key]).length + customTodos.filter(t=>customChecked[t]).length
+  const totalCount = allTodos.length + customTodos.length
+  const selectedImarking = getImarkingSchedule(selectedDateObj)
 
   const kpiCards = [
     { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
@@ -365,7 +369,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div style={{ padding:'8px 0' }}>
-                  {DAILY_TODOS.map(item => (
+                  {allTodos.map(item => (
                     <div key={item.key} onClick={() => toggleTodo(item)}
                       style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', cursor: isToday?'pointer':'default', transition:'background 0.15s', opacity: isToday?1:0.7 }}
                       onMouseEnter={e => isToday && ((e.currentTarget as HTMLElement).style.background='var(--bg-hover)')}
@@ -379,6 +383,7 @@ export default function DashboardPage() {
                         {item.key==='아이마킹' && selectedImarking>0 && (
                           <span style={{ marginLeft:8, fontSize:10, color:'var(--accent-blue)', background:'var(--accent-blue-dim)', padding:'1px 6px', borderRadius:10 }}>#{String(selectedImarking).padStart(2,'0')} 설비</span>
                         )}
+                        {item.key==='주간보고서' && <span style={{ marginLeft:6, fontSize:9, color:'var(--accent-blue)', background:'var(--accent-blue-dim)', padding:'1px 5px', borderRadius:8 }}>매주 금요일</span>}
                         {item.regular && <span style={{ marginLeft:6, fontSize:9, color:'var(--text-muted)', background:'var(--bg-hover)', padding:'1px 5px', borderRadius:8 }}>정기</span>}
                       </span>
                     </div>
@@ -445,6 +450,7 @@ export default function DashboardPage() {
                   const isToday2 = dateStr===todayKey
                   const isSelected = dateStr===selectedDate
                   const isWeekend = date.getDay()===0||date.getDay()===6
+                  const isFriday = date.getDay()===5
                   const imarkingEq = getImarkingSchedule(date)
                   const dayEvents = events[dateStr]||[]
                   const dayCompleted = completedDates[dateStr]||[]
@@ -459,6 +465,11 @@ export default function DashboardPage() {
                           {date.getDate()}
                         </span>
                       </div>
+                      {isFriday && (
+                        <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('주간 보고서')?'var(--accent-green-dim)':'var(--accent-blue-dim)', color:dayCompleted.includes('주간 보고서')?'var(--accent-green)':'var(--accent-blue)', marginBottom:2, fontWeight:600 }}>
+                          {dayCompleted.includes('주간 보고서')?'✓ ':''}📋 주간 보고서
+                        </div>
+                      )}
                       {!isWeekend && imarkingEq>0 && (
                         <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('아이마킹')?'var(--accent-green-dim)':'var(--accent-teal-dim)', color:dayCompleted.includes('아이마킹')?'var(--accent-green)':'var(--accent-teal)', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                           {dayCompleted.includes('아이마킹')?'✓ ':''}i-Marking #{String(imarkingEq).padStart(2,'00')}
@@ -484,6 +495,7 @@ export default function DashboardPage() {
                 })}
               </div>
               <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', display:'flex', gap:16, fontSize:10, color:'var(--text-muted)', flexWrap:'wrap' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-blue)' }} />주간 보고서 (금)</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-teal)' }} />아이마킹</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--bg-hover)', border:'1px solid var(--border)' }} />정기업무</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-green)' }} />완료</div>
