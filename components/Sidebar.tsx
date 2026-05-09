@@ -19,6 +19,8 @@ const navItems = [
   { href: '/memo', label: 'Memo', icon: 'memo' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
   { href: '/worklog', label: 'Work Log', icon: 'worklog' },
+  { divider: true },
+  { href: '/backup', label: 'Backup', icon: 'box' },
 ]
 
 function Icon({ name }: { name: string }) {
