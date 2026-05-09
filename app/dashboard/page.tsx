@@ -282,38 +282,119 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-      {/* CSS 폭죽 */}
+      {/* Canvas 폭죽 */}
       {showFireworks && (
-        <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999, overflow:'hidden' }}>
-          <style>{`
-            @keyframes fw { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translateY(-120px);opacity:0} }
-            @keyframes fw2 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(80px,-100px);opacity:0} }
-            @keyframes fw3 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(-80px,-100px);opacity:0} }
-            @keyframes fw4 { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1) translate(40px,-140px);opacity:0} }
-          `}</style>
-          {([
-            {l:'20%',t:'60%',c:'#ff6b6b',a:'fw',d:'0s',s:10},
-            {l:'22%',t:'58%',c:'#ffd93d',a:'fw2',d:'0.1s',s:8},
-            {l:'18%',t:'62%',c:'#6bcb77',a:'fw3',d:'0.2s',s:12},
-            {l:'50%',t:'55%',c:'#4d96ff',a:'fw',d:'0.4s',s:10},
-            {l:'52%',t:'53%',c:'#ff922b',a:'fw2',d:'0.5s',s:8},
-            {l:'48%',t:'57%',c:'#cc5de8',a:'fw4',d:'0.6s',s:11},
-            {l:'80%',t:'58%',c:'#20c997',a:'fw',d:'0.8s',s:10},
-            {l:'82%',t:'56%',c:'#ffd93d',a:'fw3',d:'0.9s',s:9},
-            {l:'78%',t:'60%',c:'#ff6b6b',a:'fw2',d:'1.0s',s:12},
-            {l:'35%',t:'40%',c:'#4d96ff',a:'fw4',d:'1.2s',s:8},
-            {l:'65%',t:'42%',c:'#cc5de8',a:'fw',d:'1.4s',s:10},
-            {l:'50%',t:'30%',c:'#6bcb77',a:'fw2',d:'1.6s',s:11},
-          ] as any[]).map((p,i) => (
-            <div key={i} style={{
-              position:'absolute', left:p.l, top:p.t,
-              width:p.s, height:p.s, borderRadius:'50%',
-              background:p.c,
-              animation:`${p.a} 1.2s ease-out forwards`,
-              animationDelay:p.d,
-            }} />
-          ))}
-        </div>
+        <canvas
+          ref={(canvas) => {
+            if (!canvas) return
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+            canvas.width = window.innerWidth
+            canvas.height = window.innerHeight
+            const W = canvas.width, H = canvas.height
+            const particles: any[] = []
+            const rockets: any[] = []
+            const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997','#f06595','#fcc419','#74c0fc','#a9e34b','#e599f7']
+            let frame = 0
+            // 로켓 발사 예약
+            const launches = [
+              {x:W*0.2,t:0},{x:W*0.5,t:18},{x:W*0.8,t:36},
+              {x:W*0.35,t:60},{x:W*0.65,t:78},{x:W*0.45,t:100},
+              {x:W*0.25,t:120},{x:W*0.75,t:135},{x:W*0.5,t:155},
+            ]
+            function explode(x: number, y: number) {
+              const count = 80 + Math.floor(Math.random()*40)
+              const baseColor = colors[Math.floor(Math.random()*colors.length)]
+              for (let i=0;i<count;i++) {
+                const angle = (Math.PI*2/count)*i + (Math.random()-0.5)*0.3
+                const speed = 2 + Math.random()*6
+                const life = 60 + Math.floor(Math.random()*40)
+                const size = 1.5 + Math.random()*2.5
+                const c = Math.random()>0.3 ? baseColor : colors[Math.floor(Math.random()*colors.length)]
+                particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life,maxLife:life,size,color:c,trail:[] as {x:number,y:number}[]})
+              }
+              // 글리터
+              for (let i=0;i<20;i++) {
+                const angle = Math.random()*Math.PI*2
+                const speed = 1+Math.random()*3
+                particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-1,life:80+Math.floor(Math.random()*40),maxLife:120,size:1,color:'#ffd93d',trail:[]})
+              }
+            }
+            function loop() {
+              ctx!.globalCompositeOperation = 'source-over'
+              ctx!.fillStyle = 'rgba(0,0,0,0.15)'
+              ctx!.fillRect(0,0,W,H)
+              ctx!.globalCompositeOperation = 'lighter'
+              // 로켓 발사
+              launches.forEach(l => {
+                if (frame === l.t) {
+                  rockets.push({x:l.x, y:H, vy:-12-Math.random()*4, targetY:H*0.2+Math.random()*H*0.3})
+                }
+              })
+              // 로켓 업데이트
+              for (let i=rockets.length-1;i>=0;i--) {
+                const r = rockets[i]
+                r.y += r.vy
+                // 궤적
+                ctx!.beginPath()
+                ctx!.arc(r.x, r.y, 2, 0, Math.PI*2)
+                ctx!.fillStyle = '#ffd93d'
+                ctx!.fill()
+                // 꼬리
+                for (let t=0;t<3;t++) {
+                  ctx!.beginPath()
+                  ctx!.arc(r.x+(Math.random()-0.5)*3, r.y+t*8, 1.5-t*0.4, 0, Math.PI*2)
+                  ctx!.fillStyle = `rgba(255,217,61,${0.5-t*0.15})`
+                  ctx!.fill()
+                }
+                if (r.y <= r.targetY) {
+                  explode(r.x, r.y)
+                  rockets.splice(i,1)
+                }
+              }
+              // 파티클 업데이트
+              for (let i=particles.length-1;i>=0;i--) {
+                const p = particles[i]
+                p.trail.push({x:p.x, y:p.y})
+                if (p.trail.length > 6) p.trail.shift()
+                p.vx *= 0.98
+                p.vy *= 0.98
+                p.vy += 0.04 // 중력
+                p.x += p.vx
+                p.y += p.vy
+                p.life--
+                const alpha = p.life / p.maxLife
+                // 잔상
+                p.trail.forEach((t: {x:number,y:number}, ti: number) => {
+                  const ta = (ti/p.trail.length) * alpha * 0.4
+                  ctx!.beginPath()
+                  ctx!.arc(t.x, t.y, p.size*0.6, 0, Math.PI*2)
+                  ctx!.fillStyle = p.color + Math.floor(ta*255).toString(16).padStart(2,'0')
+                  ctx!.fill()
+                })
+                // 파티클
+                ctx!.beginPath()
+                ctx!.arc(p.x, p.y, p.size * alpha, 0, Math.PI*2)
+                ctx!.fillStyle = p.color + Math.floor(alpha*255).toString(16).padStart(2,'0')
+                ctx!.fill()
+                // 빛 번짐
+                if (alpha > 0.5) {
+                  ctx!.beginPath()
+                  ctx!.arc(p.x, p.y, p.size*3*alpha, 0, Math.PI*2)
+                  ctx!.fillStyle = p.color + '18'
+                  ctx!.fill()
+                }
+                if (p.life <= 0) particles.splice(i,1)
+              }
+              frame++
+              if (frame < 280) requestAnimationFrame(loop)
+            }
+            ctx.fillStyle = 'rgba(0,0,0,0.01)'
+            ctx.fillRect(0,0,W,H)
+            loop()
+          }}
+          style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999 }}
+        />
       )}
 
       <Sidebar />
