@@ -34,18 +34,39 @@ export default function BackupPage() {
   const [restoreConfirm, setRestoreConfirm] = useState(false)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
+  const [autoBackups, setAutoBackups] = useState<any[]>([])
 
   function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 4000) }
 
   useEffect(() => {
     fetchCounts()
-    // localStorage에서 백업 이력
+    fetchAutoBackups()
     try {
       const hist = JSON.parse(localStorage.getItem('backup_history') || '[]')
       setBackupHistory(hist)
       if (hist.length > 0) setLastBackup(hist[0].date)
     } catch {}
   }, [])
+
+  async function fetchAutoBackups() {
+    const { data } = await supabase.from('backup_logs').select('*').order('backup_date', { ascending: false }).limit(10)
+    if (data && data.length > 0) {
+      setAutoBackups(data)
+      if (!lastBackup || data[0].backup_date > lastBackup) {
+        setLastBackup(data[0].backup_date)
+      }
+    }
+  }
+
+  async function downloadAutoBackup(filename: string) {
+    const { data, error } = await supabase.storage.from('backups').download(filename)
+    if (error || !data) { showToast('다운로드 실패: ' + (error?.message || '파일 없음'), 'error'); return }
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    showToast('다운로드 완료!')
+  }
 
   async function fetchCounts() {
     setLoading(true)
@@ -258,7 +279,38 @@ export default function BackupPage() {
             </div>
           </div>
 
-          {/* 백업 이력 */}
+          {/* 자동 백업 이력 (Cron Job) */}
+          {autoBackups.length > 0 && (
+            <div className="card" style={{ marginTop: 16, padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>🤖 자동 백업 이력 (매주 금요일)</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Vercel Cron Job으로 자동 실행됨 · Supabase Storage 저장</div>
+                </div>
+                <span className="badge badge-green" style={{ fontSize: 9 }}>자동화 ON</span>
+              </div>
+              <div style={{ padding: '8px 18px' }}>
+                {autoBackups.map((b, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < autoBackups.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <span style={{ fontSize: 10, color: b.status === 'completed' ? 'var(--accent-green)' : 'var(--accent-amber)' }}>
+                      {b.status === 'completed' ? '✅' : '⚠️'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1 }}>{b.backup_date}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {b.total_rows?.toLocaleString() || '?'}건
+                    </span>
+                    {b.filename && b.status === 'completed' && (
+                      <button className="btn btn-ghost btn-sm" style={{ fontSize: 9 }} onClick={() => downloadAutoBackup(b.filename)}>
+                        📥 다운로드
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 수동 백업 이력 */}
           {backupHistory.length > 0 && (
             <div className="card" style={{ marginTop: 16, padding: 0, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
