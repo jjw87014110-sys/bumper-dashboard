@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -51,11 +51,7 @@ function toLocalDate(date: Date): string {
 }
 
 export default function AnalysisPage() {
-  const { isPinVerified } = useAuth()
-  const _router = typeof window !== 'undefined' ? null : null
-  if (typeof window !== 'undefined' && !isPinVerified) {
-    window.location.href = '/login'
-  }
+  useRequireAuth()
   const [loading, setLoading] = useState(true)
   const [scratchByEq, setScratchByEq] = useState<any[]>([])
   const [maintenanceByEq, setMaintenanceByEq] = useState<any[]>([])
