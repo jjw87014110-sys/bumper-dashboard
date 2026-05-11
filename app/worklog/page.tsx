@@ -110,7 +110,7 @@ ${note ? `- 특이사항: ${note}` : ''}
 - 알람관리: 후가공설비 알람 발생 현황 점검 및 조치`
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
