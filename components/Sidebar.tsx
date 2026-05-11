@@ -1,5 +1,6 @@
 'use client'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { useEffect, useState } from 'react'
 
@@ -48,7 +49,6 @@ function Icon({ name }: { name: string }) {
 
 export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const path = usePathname()
-  const router = useRouter()
   const { logout } = useAuth()
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
@@ -92,9 +92,11 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
           )
           const active = path === item.href
           return (
-            <div
+            <Link
               key={item.href}
-              onClick={() => router.push(item.href!)}
+              href={item.href!}
+              prefetch={true}
+              onClick={onMobileClose}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: '9px 16px', cursor: 'pointer',
@@ -103,13 +105,14 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
                 borderLeft: `2px solid ${active ? 'var(--accent-blue)' : 'transparent'}`,
                 fontSize: 12, fontWeight: active ? 600 : 400,
                 transition: 'all 0.15s',
+                textDecoration: 'none',
               }}
               onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)' } }}
               onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' } }}
             >
               <Icon name={item.icon!} />
               {item.label}
-            </div>
+            </Link>
           )
         })}
       </nav>
