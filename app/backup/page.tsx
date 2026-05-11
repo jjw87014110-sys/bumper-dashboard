@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -22,8 +22,7 @@ const TABLES = [
 ]
 
 export default function BackupPage() {
-  const { isPinVerified } = useAuth()
-  if (typeof window !== 'undefined' && !isPinVerified) { window.location.href = '/login' }
+  useRequireAuth()
 
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
