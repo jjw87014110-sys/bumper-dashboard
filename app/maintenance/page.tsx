@@ -1,16 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import { exportMaintenanceData } from '@/lib/exportCSV'
 
 export default function MaintenancePage() {
-  const { isPinVerified } = useAuth()
-  const _router = typeof window !== 'undefined' ? null : null
-  if (typeof window !== 'undefined' && !isPinVerified) {
-    window.location.href = '/login'
-  }
+  useRequireAuth()
   const [equipment, setEquipment] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
