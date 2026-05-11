@@ -21,6 +21,7 @@ const navItems = [
   { href: '/worklog', label: 'Work Log', icon: 'worklog' },
   { divider: true },
   { href: '/backup', label: 'Backup', icon: 'box' },
+  { href: '/security', label: 'Security', icon: 'lock' },
 ]
 
 function Icon({ name }: { name: string }) {
