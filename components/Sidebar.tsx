@@ -21,7 +21,7 @@ const navItems = [
   { href: '/worklog', label: 'Work Log', icon: 'worklog' },
   { divider: true },
   { href: '/backup', label: 'Backup', icon: 'box' },
-  { href: '/security', label: 'Security', icon: 'lock' },
+  { href: '/security', label: 'Security', icon: 'shield' },
 ]
 
 function Icon({ name }: { name: string }) {
@@ -41,6 +41,7 @@ function Icon({ name }: { name: string }) {
     case 'memo': return <svg style={s} viewBox="0 0 15 15" {...p}><rect x="2" y="1" width="11" height="13" rx="1"/><line x1="4.5" y1="4.5" x2="10.5" y2="4.5"/><line x1="4.5" y1="7" x2="10.5" y2="7"/><line x1="4.5" y1="9.5" x2="8" y2="9.5"/></svg>
     case 'user': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="5" r="2.5"/><path d="M2 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg>
     case 'moon': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M12 9A6 6 0 116 3a4.5 4.5 0 006 6z"/></svg>
+    case 'shield': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M7.5 1L2 3.5v4c0 3.5 2.5 6 5.5 7 3-1 5.5-3.5 5.5-7v-4z"/><path d="M5.5 7.5l1.5 1.5 3-3" strokeLinecap="round" strokeLinejoin="round"/></svg>
     default: return null
   }
 }
