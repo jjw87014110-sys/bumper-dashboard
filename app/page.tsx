@@ -41,17 +41,20 @@ export default function WorklogPage() {
 
   function loadDateData(selectedDate: string) {
     try {
+      // 정기 TO DO 체크 상태
       const saved = JSON.parse(localStorage.getItem('todo_' + selectedDate) || '{}')
       const merged: Record<string, boolean> = {}
       DAILY_TODOS.forEach(t => { if (saved[t.key]) merged[t.key] = true })
       setChecked(merged)
 
+      // 달력에서 추가된 커스텀 할일
       const customTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
       const customChecked = JSON.parse(localStorage.getItem('custom_checked_' + selectedDate) || '{}')
       const dayCustomTodos: string[] = customTodos[selectedDate] || []
       setCustomTodos(dayCustomTodos)
       setCustomChecked(customChecked)
 
+      // 달력 이벤트
       const events = JSON.parse(localStorage.getItem('cal_events') || '{}')
       const dayEvents: string[] = events[selectedDate] || []
       setCalEvents(dayEvents)
@@ -74,61 +77,55 @@ export default function WorklogPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // ✅ AI 직접 호출로 업무일지 생성
   async function generateLog() {
     const selectedTodos = DAILY_TODOS.filter(t => checked[t.key]).map(t => t.label)
     const selectedCustom = customTodos.filter(t => customChecked[t])
     const allTodos = [...selectedTodos, ...selectedCustom]
     if (allTodos.length === 0) { showToast('완료한 업무를 최소 1개 이상 선택해주세요', 'error'); return }
 
-    const prompt = `아래 정보를 바탕으로 업무일지를 작성해줘:
+    setGenerating(true)
+    setLogText('')
+
+    const prompt = `당신은 자동차 범퍼 후가공설비를 관리하는 생산기술 담당자의 업무일지를 작성해주는 AI입니다.
+
+아래 정보를 바탕으로 업무일지를 작성해주세요:
 - 날짜: ${date}
 - 작성자: ${author} / 생산기술팀
 - 완료한 업무: ${allTodos.join(', ')}
 ${note ? `- 특이사항: ${note}` : ''}
 
-업무일지 형식:
-1. 날짜, 작성자, 팀
-2. 업무내용 (번호 목록으로 각 업무별 구체적인 수행 내용)
-3. 특이사항
-4. 비고
+업무일지 작성 규칙:
+1. 한국어로 작성
+2. 각 업무별로 구체적인 수행 내용을 추론해서 작성
+3. 형식: 날짜, 작성자, 팀, 업무내용(번호 목록), 특이사항, 비고 순서로
+4. 전문적이고 간결하게 작성
+5. 업무일지 내용만 출력 (설명 없이)
 
-업무별 내용 참고:
-- 변동점관리: 생산 변동점(재료/금형/설비) 발생 여부 확인 및 기록
+업무별 기본 내용 가이드:
+- 변동점관리: 생산 변동점(재료, 금형, 설비 등) 발생 여부 확인 및 기록
 - 제품 융착관리: 후가공설비 융착 조건 확인 및 불량 모니터링
 - 찍힘 관리: 범퍼 찍힘 발생 여부 전수 점검 및 원인 파악
 - 아이마킹: 담당 설비 아이마킹 조건 점검 및 기록
 - 정비이력 관리: 설비 정비 이력 확인 및 데이터 업데이트
-- 알람관리: 후가공설비 알람 발생 현황 점검 및 조치
-
-업무일지 내용만 출력해줘 (설명 없이)`
-
-    setGenerating(true)
-    setLogText('')
+- 알람관리: 후가공설비 알람 발생 현황 점검 및 조치`
 
     try {
-      const res = await fetch('/api/generate', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-opus-4-5',
-          max_tokens: 1024,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
       })
-
-      const data = await res.json()
-
-      if (data?.content?.[0]?.text) {
-        setLogText(data.content[0].text)
-      } else {
-        showToast('AI 생성 실패. 다시 시도해주세요.', 'error')
-      }
-    } catch (e) {
-      showToast('오류가 발생했습니다.', 'error')
-    } finally {
-      setGenerating(false)
+      const data = await response.json()
+      const text = data.content?.[0]?.text || '생성 실패'
+      setLogText(text)
+    } catch {
+      showToast('생성 실패. 다시 시도해주세요.', 'error')
     }
+    setGenerating(false)
   }
 
   async function saveLog() {
@@ -162,6 +159,9 @@ ${note ? `- 특이사항: ${note}` : ''}
     if (selectedLog?.id === id) setSelectedLog(null)
     fetchLogs()
   }
+
+  const td: React.CSSProperties = { fontSize: 11, padding: '8px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
+  const th: React.CSSProperties = { fontSize: 10, padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   return (
     <div className="page-container">
@@ -271,7 +271,7 @@ ${note ? `- 특이사항: ${note}` : ''}
               {/* 생성 버튼 */}
               <button className="btn btn-primary" onClick={generateLog} disabled={generating}
                 style={{ padding: '12px', fontSize: 14, justifyContent: 'center' }}>
-                {generating ? '⏳ AI 작성 중...' : '✨ AI 업무일지 자동 생성'}
+                {generating ? '⏳ AI가 업무일지 작성 중...' : '✨ AI 업무일지 자동 생성'}
               </button>
 
               {/* 결과 */}
@@ -280,10 +280,10 @@ ${note ? `- 특이사항: ${note}` : ''}
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>생성된 업무일지</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={copyText} disabled={generating}>
+                      <button className="btn btn-ghost btn-sm" onClick={copyText}>
                         {copied ? '✓ 복사됨' : '복사'}
                       </button>
-                      <button className="btn btn-primary btn-sm" onClick={saveLog} disabled={saving || !logText || generating}>
+                      <button className="btn btn-primary btn-sm" onClick={saveLog} disabled={saving || !logText}>
                         {saving ? '저장 중...' : '💾 저장'}
                       </button>
                     </div>
@@ -348,6 +348,7 @@ ${note ? `- 특이사항: ${note}` : ''}
                 )}
               </div>
 
+              {/* 선택된 로그 내용 */}
               {selectedLog && (
                 <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -366,7 +367,6 @@ ${note ? `- 특이사항: ${note}` : ''}
           </div>
         </div>
       </div>
-
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
