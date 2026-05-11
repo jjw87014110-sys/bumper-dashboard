@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 
 const navItems = [
@@ -51,6 +52,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
   const path = usePathname()
   const { logout } = useAuth()
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [alarmCount, setAlarmCount] = useState(0)
 
   useEffect(() => {
     const saved = localStorage.getItem('theme') as 'dark' | 'light' | null
@@ -58,6 +60,15 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
       setTheme(saved)
       document.documentElement.setAttribute('data-theme', saved)
     }
+    // 이번 달 알람 건수 가져오기
+    const now = new Date()
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+    supabase.from('alarm').select('punch_alarm, weld_alarm', { count: 'exact' })
+      .gte('date', monthStart)
+      .then(({ data }) => {
+        const count = (data||[]).filter((r: any) => (r.punch_alarm||0)+(r.weld_alarm||0) > 0).length
+        setAlarmCount(count)
+      })
   }, [])
 
   function toggleTheme() {
@@ -112,6 +123,9 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
             >
               <Icon name={item.icon!} />
               {item.label}
+              {item.href === '/alarm' && alarmCount > 0 && (
+                <span style={{ marginLeft: 'auto', background: 'var(--accent-red)', color: 'white', fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>{alarmCount}</span>
+              )}
             </Link>
           )
         })}
