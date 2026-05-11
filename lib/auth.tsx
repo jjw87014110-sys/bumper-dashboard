@@ -155,3 +155,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
+
+// 인증 필요한 페이지에서 사용 - 미인증 시 router.push로 리다이렉트
+export function useRequireAuth() {
+  const ctx = useContext(AuthContext)
+  const router = useRouter()
+  useEffect(() => {
+    if (!ctx.isPinVerified) {
+      router.push('/login')
+    }
+  }, [ctx.isPinVerified, router])
+  return ctx
+}
