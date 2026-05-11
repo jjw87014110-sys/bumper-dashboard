@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
-const ALLOWED_IP = '59.3.91.101'
-const EXTERNAL_PW = 'Pw00232!!'
+const ALLOWED_IP = process.env.NEXT_PUBLIC_ALLOWED_IP || '59.3.91.101'
+const EXTERNAL_PW = process.env.NEXT_PUBLIC_EXTERNAL_PW || 'Pw00232!!'
 
 export default function LoginPage() {
   const [step, setStep] = useState<'login' | 'pin'>('login')
@@ -64,7 +64,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     await new Promise(r => setTimeout(r, 600))
-    const ok = login(id, pw)
+    const ok = await login(id, pw)
     if (ok) {
       try {
         await supabase.from('access_logs').insert([{
@@ -87,7 +87,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     await new Promise(r => setTimeout(r, 400))
-    const ok = verifyPin(pin)
+    const ok = await verifyPin(pin)
     if (ok) {
       router.push('/dashboard')
     } else {
