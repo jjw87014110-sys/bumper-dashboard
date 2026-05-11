@@ -1,12 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function SecurityPage() {
-  const { isPinVerified, userRole, userName, changePassword, changePin } = useAuth()
-  if (typeof window !== 'undefined' && !isPinVerified) { window.location.href = '/login' }
+  const { userRole, userName, changePassword, changePin } = useRequireAuth()
 
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   // 비밀번호 변경
