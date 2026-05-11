@@ -21,8 +21,13 @@ export default function MemoPage() {
 
   async function fetchMemos() {
     setLoading(true)
-    const { data } = await supabase.from('memos').select('*').order('updated_at', { ascending: false })
-    setMemos(data || [])
+    try {
+      const { data, error } = await supabase.from('memos').select('*').order('updated_at', { ascending: false })
+      if (error) throw error
+      setMemos(data || [])
+    } catch (err: any) {
+      console.error('메모 로딩 실패:', err)
+    }
     setLoading(false)
   }
 
