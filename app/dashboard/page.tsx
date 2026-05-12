@@ -363,6 +363,55 @@ export default function DashboardPage() {
     localStorage.setItem('cal_completed', JSON.stringify(nc))
   }
 
+  // 드래그 앤 드롭: 일정을 다른 날짜로 이동
+  const [dragItem, setDragItem] = useState<{date:string,idx:number,label:string}|null>(null)
+  const [dragOverDate, setDragOverDate] = useState<string|null>(null)
+
+  function moveEvent(fromDate: string, idx: number, toDate: string) {
+    if (fromDate === toDate) return
+    const fromArr = [...(events[fromDate]||[])]
+    const label = fromArr[idx]
+    if (!label) return
+    fromArr.splice(idx, 1)
+    const toArr = [...(events[toDate]||[]), label]
+    const next = { ...events, [fromDate]: fromArr, [toDate]: toArr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+
+    // custom_todos도 이동
+    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const fromTodos: string[] = sc[fromDate]||[]
+    const fi = fromTodos.indexOf(label)
+    if (fi>-1) fromTodos.splice(fi,1)
+    const toTodos: string[] = sc[toDate]||[]
+    if (!toTodos.includes(label)) toTodos.push(label)
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [fromDate]: fromTodos, [toDate]: toTodos }))
+
+    // completed도 이동
+    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const fromComp: string[] = cp[fromDate]||[]
+    const ci = fromComp.indexOf(label)
+    if (ci>-1) {
+      fromComp.splice(ci,1)
+      const toComp: string[] = cp[toDate]||[]
+      if (!toComp.includes(label)) toComp.push(label)
+      const nc = { ...cp, [fromDate]: fromComp, [toDate]: toComp }
+      setCompletedDates(nc)
+      localStorage.setItem('cal_completed', JSON.stringify(nc))
+    }
+
+    // DB 동기화
+    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).then(() => {
+      supabase.from('calendar_events').insert([{ date: toDate, label }]).then(() => {})
+    })
+    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).then(() => {
+      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    })
+
+    if (selectedDate === fromDate) setCustomTodos(fromTodos)
+    if (selectedDate === toDate) setCustomTodos(toTodos)
+  }
+
   function startFireworks() {
     setShowFireworks(true)
     setTimeout(() => setShowFireworks(false), 4000)
@@ -625,7 +674,10 @@ export default function DashboardPage() {
                   return (
                     <div key={idx}
                       onClick={() => handleCalendarDateClick(dateStr)}
-                      style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', padding:'6px', background:isSelected?'var(--accent-blue-dim)':isToday2?'rgba(59,126,248,0.05)':'transparent', cursor:'pointer', outline:isSelected?'2px solid var(--accent-blue)':'none', outlineOffset:'-2px', transition:'all 0.15s' }}
+                      onDragOver={e => { e.preventDefault(); setDragOverDate(dateStr) }}
+                      onDragLeave={() => setDragOverDate(null)}
+                      onDrop={e => { e.preventDefault(); setDragOverDate(null); if (dragItem) { moveEvent(dragItem.date, dragItem.idx, dateStr); setDragItem(null) } }}
+                      style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', padding:'6px', background:dragOverDate===dateStr?'var(--accent-blue-dim)':isSelected?'var(--accent-blue-dim)':isToday2?'rgba(59,126,248,0.05)':'transparent', cursor:'pointer', outline:dragOverDate===dateStr?'2px dashed var(--accent-blue)':isSelected?'2px solid var(--accent-blue)':'none', outlineOffset:'-2px', transition:'all 0.15s' }}
                     >
                       <div style={{ marginBottom:4 }}>
                         <span style={{ fontSize:12, fontWeight:isToday2?700:400, color:isToday2?'white':wd===0?'var(--accent-red)':wd===6?'var(--accent-teal)':'var(--text-primary)', background:isToday2?'var(--accent-blue)':'transparent', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
@@ -650,7 +702,11 @@ export default function DashboardPage() {
                       {dayEvents.map((ev,i) => {
                         const isDone = dayCompleted.includes(ev)
                         return (
-                          <div key={i} style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2 }}
+                          <div key={i}
+                            draggable
+                            onDragStart={e => { setDragItem({date:dateStr,idx:i,label:ev}); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',ev) }}
+                            onDragEnd={() => setDragItem(null)}
+                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab' }}
                             onClick={e => { e.stopPropagation(); removeEvent(dateStr,i) }}>
                             <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{isDone?'✓ ':''}{ev}</span>
                             <span style={{ flexShrink:0, opacity:0.6 }}>×</span>
@@ -667,7 +723,7 @@ export default function DashboardPage() {
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--bg-hover)', border:'1px solid var(--border)' }} />정기업무</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-green)' }} />완료</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-amber)' }} />추가 일정 (×삭제)</div>
-                <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>클릭하면 TO DO 날짜 변경</div>
+                <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>클릭=날짜 변경 · 드래그=일정 이동</div>
               </div>
             </div>
           </div>
