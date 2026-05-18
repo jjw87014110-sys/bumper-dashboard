@@ -366,6 +366,49 @@ export default function DashboardPage() {
   // 드래그 앤 드롭: 일정을 다른 날짜로 이동
   const [dragItem, setDragItem] = useState<{date:string,idx:number,label:string}|null>(null)
   const [dragOverDate, setDragOverDate] = useState<string|null>(null)
+  const [editEvent, setEditEvent] = useState<{date:string,idx:number,label:string}|null>(null)
+  const [editEventText, setEditEventText] = useState('')
+
+  function openEditEvent(date: string, idx: number, label: string) {
+    setEditEvent({ date, idx, label })
+    setEditEventText(label)
+  }
+
+  function saveEditEvent() {
+    if (!editEvent || !editEventText.trim()) return
+    const { date, idx, label: oldLabel } = editEvent
+    const newLabel = editEventText.trim()
+    if (newLabel === oldLabel) { setEditEvent(null); return }
+
+    // events 업데이트
+    const arr = [...(events[date]||[])]
+    arr[idx] = newLabel
+    const next = { ...events, [date]: arr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+
+    // custom_todos 업데이트
+    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const dt: string[] = sc[date]||[]
+    const ti = dt.indexOf(oldLabel)
+    if (ti>-1) dt[ti] = newLabel
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
+    if (date===selectedDate) setCustomTodos(dt)
+
+    // completed 업데이트
+    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const dc: string[] = cp[date]||[]
+    const ci = dc.indexOf(oldLabel)
+    if (ci>-1) dc[ci] = newLabel
+    setCompletedDates({ ...cp, [date]: dc })
+    localStorage.setItem('cal_completed', JSON.stringify({ ...cp, [date]: dc }))
+
+    // DB 동기화
+    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).then(() => {})
+    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).then(() => {})
+
+    setEditEvent(null)
+  }
 
   function moveEvent(fromDate: string, idx: number, toDate: string) {
     if (fromDate === toDate) return
@@ -706,10 +749,13 @@ export default function DashboardPage() {
                             draggable
                             onDragStart={e => { setDragItem({date:dateStr,idx:i,label:ev}); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',ev) }}
                             onDragEnd={() => setDragItem(null)}
-                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab' }}
-                            onClick={e => { e.stopPropagation(); removeEvent(dateStr,i) }}>
-                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{isDone?'✓ ':''}{ev}</span>
-                            <span style={{ flexShrink:0, opacity:0.6 }}>×</span>
+                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab' }}>
+                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer', flex:1 }}
+                              onClick={e => { e.stopPropagation(); openEditEvent(dateStr,i,ev) }}>
+                              {isDone?'✓ ':''}{ev}
+                            </span>
+                            <span style={{ flexShrink:0, opacity:0.6, cursor:'pointer', padding:'0 2px' }}
+                              onClick={e => { e.stopPropagation(); removeEvent(dateStr,i) }}>×</span>
                           </div>
                         )
                       })}
@@ -722,8 +768,8 @@ export default function DashboardPage() {
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-teal)' }} />아이마킹</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--bg-hover)', border:'1px solid var(--border)' }} />정기업무</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-green)' }} />완료</div>
-                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-amber)' }} />추가 일정 (×삭제)</div>
-                <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>클릭=날짜 변경 · 드래그=일정 이동</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-amber)' }} />추가 일정 (클릭=수정 · ×=삭제)</div>
+                <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>드래그=일정 이동</div>
               </div>
             </div>
           </div>
@@ -751,6 +797,33 @@ export default function DashboardPage() {
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setEventModal(false)}>취소</button>
               <button className="btn btn-primary" onClick={addEvent}>추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일정 수정 모달 */}
+      {editEvent && (
+        <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setEditEvent(null)}>
+          <div className="modal" style={{ maxWidth:400 }}>
+            <div className="modal-header">
+              <div className="modal-title">일정 수정</div>
+              <button className="modal-close" onClick={() => setEditEvent(null)}>×</button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div className="form-group">
+                <label className="form-label">날짜</label>
+                <div style={{ fontSize:12, color:'var(--text-secondary)', padding:'8px 12px', background:'var(--bg-hover)', borderRadius:6 }}>{editEvent.date}</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">내용</label>
+                <input className="form-input" type="text" value={editEventText} onChange={e => setEditEventText(e.target.value)} onKeyDown={e => e.key==='Enter'&&saveEditEvent()} autoFocus />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditEvent(null)}>취소</button>
+              <button className="btn btn-danger" onClick={() => { removeEvent(editEvent.date, editEvent.idx); setEditEvent(null) }}>삭제</button>
+              <button className="btn btn-primary" onClick={saveEditEvent}>저장</button>
             </div>
           </div>
         </div>
