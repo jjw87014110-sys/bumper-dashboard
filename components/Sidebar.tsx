@@ -107,6 +107,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
               href={item.href!}
               prefetch={true}
               onClick={onMobileClose}
+              className={active ? 'sidebar-link-active' : ''}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: '9px 16px', cursor: 'pointer',
@@ -131,6 +132,13 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
       </nav>
 
       <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+        {/* 빠른 탐색 힌트 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '6px 10px', background: 'var(--bg-hover)', borderRadius: 6, cursor: 'pointer' }}
+             onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>🔍 빠른 탐색</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)' }}><span className="kbd">Ctrl</span><span className="kbd">K</span></span>
+        </div>
+        {/* 테마 토글 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '6px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
             <Icon name={theme === 'dark' ? 'moon' : 'sun'} />
