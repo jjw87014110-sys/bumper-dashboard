@@ -325,3 +325,276 @@ body {
 /* ── Scrollable table ── */
 .table-scroll { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 320px); }
 .table-scroll table { width: 100%; border-collapse: collapse; }
+
+/* ====================================================== */
+/*               디자인 추가 개선 (Phase 3)                  */
+/* ====================================================== */
+
+/* ── 사이드바 아이콘 글로우 (활성 상태) ── */
+.sidebar-link-active svg {
+  filter: drop-shadow(0 0 4px var(--accent-blue));
+  transition: filter 0.2s ease;
+}
+
+/* ── KPI 카드 색상 강조선 (좌측 액센트) ── */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-color, var(--accent-blue));
+  border-radius: 2px 0 0 2px;
+}
+
+/* ── 로딩 스켈레톤 ── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-hover) 0%,
+    var(--border) 50%,
+    var(--bg-hover) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  display: inline-block;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-text {
+  height: 14px;
+  width: 100%;
+}
+.skeleton-card {
+  height: 80px;
+  width: 100%;
+  border-radius: var(--radius);
+}
+.skeleton-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+/* ── 빈 데이터 일러스트 ── */
+.empty-state-pro {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty-state-pro .empty-icon {
+  font-size: 48px;
+  opacity: 0.4;
+  margin-bottom: 12px;
+}
+.empty-state-pro .empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.empty-state-pro .empty-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── 명령 팔레트 ── */
+.cmd-palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 10000;
+  animation: cmdFadeIn 0.15s ease;
+}
+@keyframes cmdFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.cmd-palette {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 560px;
+  max-height: 60vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  animation: cmdSlideIn 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+@keyframes cmdSlideIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.cmd-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  padding: 18px 20px;
+  font-size: 15px;
+  font-family: 'Pretendard', sans-serif;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+.cmd-input::placeholder { color: var(--text-muted); }
+.cmd-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-family: 'Pretendard', sans-serif;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+}
+.cmd-item:hover, .cmd-item.active {
+  background: var(--bg-hover);
+}
+.cmd-item.active {
+  background: var(--accent-blue-dim);
+  color: var(--accent-blue);
+}
+.cmd-item-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.cmd-item-text { flex: 1; }
+.cmd-item-shortcut {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.cmd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-card);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin: 0 2px;
+}
+
+/* ── 핀 고정 즐겨찾기 ── */
+.favorites-section {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.favorite-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin: 2px 4px 2px 0;
+  background: var(--accent-amber-dim);
+  color: var(--accent-amber);
+  font-size: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.favorite-badge:hover {
+  transform: translateY(-1px);
+  background: var(--accent-amber);
+  color: white;
+}
+
+/* ── 실시간 동기화 표시 ── */
+.realtime-indicator {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  background: var(--accent-green);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 999;
+  cursor: pointer;
+  animation: realtimePulse 2s ease-in-out infinite;
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+}
+@keyframes realtimePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* ── 단축키 도움말 ── */
+.shortcut-help {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 8px 0;
+}
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+.shortcut-desc { font-size: 11px; color: var(--text-secondary); }
+.shortcut-keys { display: flex; gap: 2px; }
+
+/* ── 인쇄 최적화 ── */
+@media print {
+  .sidebar, .topbar, .btn, .modal-overlay, .toast, .realtime-indicator,
+  .cmd-palette-overlay, .mobile-menu-btn { display: none !important; }
+  .main-area { margin-left: 0 !important; }
+  .content-area { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+  body { background: white !important; color: black !important; }
+  * { color: black !important; }
+  .badge { border: 1px solid currentColor; }
+}
