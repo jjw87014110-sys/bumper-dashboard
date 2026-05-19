@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
@@ -26,8 +27,6 @@ export default function ScratchPage() {
   const [uploading, setUploading] = useState(false)
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -46,7 +45,7 @@ export default function ScratchPage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   function openAdd() {
     setEditItem(null)
@@ -161,26 +160,26 @@ export default function ScratchPage() {
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','사진','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                        <thead><tr>{['일자','오전/오후','차종','구분','찍힘부위','지그상태','설비문제','조치','사진','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                         <tbody>{data.map(r => (
                           <tr key={r.id}>
-                            <td style={td}>{r.date}</td>
-                            <td style={td}>{r.time_of_day}</td>
-                            <td style={td}><span className="badge badge-gray">{r.model}</span></td>
-                            <td style={td}>{r.category}</td>
-                            <td style={td}>{r.scratch_location}</td>
-                            <td style={td}><span className={`badge ${r.jig_status==='양호'?'badge-green':'badge-red'}`}>{r.jig_status}</span></td>
-                            <td style={td}><span className={`badge ${r.equipment_issue==='해당없음'?'badge-gray':'badge-amber'}`}>{r.equipment_issue}</span></td>
-                            <td style={td}>{r.action||'-'}</td>
-                            <td style={td}>
+                            <td className="tbl-td">{r.date}</td>
+                            <td className="tbl-td">{r.time_of_day}</td>
+                            <td className="tbl-td"><span className="badge badge-gray">{r.model}</span></td>
+                            <td className="tbl-td">{r.category}</td>
+                            <td className="tbl-td">{r.scratch_location}</td>
+                            <td className="tbl-td"><span className={`badge ${r.jig_status==='양호'?'badge-green':'badge-red'}`}>{r.jig_status}</span></td>
+                            <td className="tbl-td"><span className={`badge ${r.equipment_issue==='해당없음'?'badge-gray':'badge-amber'}`}>{r.equipment_issue}</span></td>
+                            <td className="tbl-td">{r.action||'-'}</td>
+                            <td className="tbl-td">
                               {r.image_url
                                 ? <a href={r.image_url} target="_blank" rel="noopener noreferrer">
                                     <img src={r.image_url} alt="찍힘사진" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer' }} />
                                   </a>
                                 : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                             </td>
-                            <td style={td}>{r.note||'-'}</td>
-                            <td style={td}>
+                            <td className="tbl-td">{r.note||'-'}</td>
+                            <td className="tbl-td">
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>수정</button>
                                 <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
@@ -293,7 +292,7 @@ export default function ScratchPage() {
           </div>
         </div>
       )}
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
