@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 import {
   getEquipmentStructure,
@@ -76,17 +77,20 @@ export default function AlarmPage() {
       const { error } = await supabase.from('alarm').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); return }
       showToast('수정되었습니다')
+      logAudit(getCurrentUserName(), 'UPDATE', 'alarm', '알람 수정', { targetId: editItem?.id })
     } else {
       const { error } = await supabase.from('alarm').insert([payload])
       if (error) { showToast('등록 실패', 'error'); return }
       showToast('등록되었습니다')
+      logAudit(getCurrentUserName(), 'CREATE', 'alarm', '알람 등록')
     }
     setModal(false); reload()
   }
 
   async function handleDelete(id: number) {
     await supabase.from('alarm').delete().eq('id', id)
-    showToast('삭제되었습니다'); setDeleteId(null); reload()
+    showToast('삭제되었습니다')
+      logAudit(getCurrentUserName(), 'DELETE', 'alarm', '알람 삭제'); setDeleteId(null); reload()
   }
 
   const filtered = data.filter(r => {
