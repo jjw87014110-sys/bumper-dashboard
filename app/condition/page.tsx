@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 import {
   getEquipmentStructure,
@@ -72,17 +73,20 @@ export default function ConditionPage() {
       const { error } = await supabase.from('condition_table').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); return }
       showToast('수정되었습니다')
+      logAudit(getCurrentUserName(), 'UPDATE', 'condition_table', '조건표 수정', { targetId: editItem?.id })
     } else {
       const { error } = await supabase.from('condition_table').insert([payload])
       if (error) { showToast('등록 실패', 'error'); return }
       showToast('등록되었습니다')
+      logAudit(getCurrentUserName(), 'CREATE', 'condition_table', '조건표 등록')
     }
     setModal(false); reload()
   }
 
   async function handleDelete(id: number) {
     await supabase.from('condition_table').delete().eq('id', id)
-    showToast('삭제되었습니다'); setDeleteId(null); reload()
+    showToast('삭제되었습니다')
+      logAudit(getCurrentUserName(), 'DELETE', 'condition_table', '조건표 삭제'); setDeleteId(null); reload()
   }
 
   // 설비별 구조 가져오기
