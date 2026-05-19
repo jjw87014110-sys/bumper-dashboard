@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
@@ -26,8 +27,6 @@ export default function ConditionPage() {
   const [form, setForm] = useState<any>({ change_date: new Date().toISOString().slice(0,10), category: '펀칭', mode: '', unit: '', value: '', holder_category: '', holder_no: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -46,7 +45,7 @@ export default function ConditionPage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   function openAdd() {
     setEditItem(null)
@@ -208,21 +207,21 @@ export default function ConditionPage() {
                             <>
                               {/* 1행: 카테고리 그룹 헤더 */}
                               <tr>
-                                <th style={th} rowSpan={2}>변경일자</th>
-                                <th style={th} rowSpan={2}>구분</th>
-                                <th style={th} rowSpan={2}>모드</th>
-                                <th style={th} rowSpan={2}>단위</th>
+                                <th className="tbl-th" rowSpan={2}>변경일자</th>
+                                <th className="tbl-th" rowSpan={2}>구분</th>
+                                <th className="tbl-th" rowSpan={2}>모드</th>
+                                <th className="tbl-th" rowSpan={2}>단위</th>
                                 {categoryGroups.map((g, gi) => (
                                   <th
                                     key={`cat-${gi}`}
-                                    style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
+                                    className="tbl-th" style={{ textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
                                     colSpan={g.holders.length}
                                   >
                                     {g.category}
                                   </th>
                                 ))}
-                                <th style={th} rowSpan={2}>비고</th>
-                                <th style={th} rowSpan={2}>관리</th>
+                                <th className="tbl-th" rowSpan={2}>비고</th>
+                                <th className="tbl-th" rowSpan={2}>관리</th>
                               </tr>
                               {/* 2행: 홀더 번호 */}
                               <tr>
@@ -230,7 +229,7 @@ export default function ConditionPage() {
                                   g.holders.map((h, hi) => (
                                     <th
                                       key={`h-${gi}-${hi}`}
-                                      style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                      className="tbl-th" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
                                     >
                                       {h.holderNo}
                                     </th>
@@ -240,20 +239,20 @@ export default function ConditionPage() {
                             </>
                           ) : (
                             <tr>
-                              <th style={th}>변경일자</th>
-                              <th style={th}>구분</th>
-                              <th style={th}>모드</th>
-                              <th style={th}>단위</th>
-                              <th style={th}>값</th>
-                              <th style={th}>비고</th>
-                              <th style={th}>관리</th>
+                              <th className="tbl-th">변경일자</th>
+                              <th className="tbl-th">구분</th>
+                              <th className="tbl-th">모드</th>
+                              <th className="tbl-th">단위</th>
+                              <th className="tbl-th">값</th>
+                              <th className="tbl-th">비고</th>
+                              <th className="tbl-th">관리</th>
                             </tr>
                           )}
                         </thead>
                         <tbody>
                           {rowKeys.length === 0 ? (
                             <tr>
-                              <td style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }} colSpan={hasHolder ? categoryGroups.reduce((s, g) => s + g.holders.length, 0) + 6 : 7}>
+                              <td className="tbl-td" style={{ textAlign: 'center', color: 'var(--text-muted)' }} colSpan={hasHolder ? categoryGroups.reduce((s, g) => s + g.holders.length, 0) + 6 : 7}>
                                 데이터 없음
                               </td>
                             </tr>
@@ -265,13 +264,13 @@ export default function ConditionPage() {
                             return (
                               <tr key={key}>
                                 {showDate && (
-                                  <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }} rowSpan={dateRowCount[date]}>
+                                  <td className="tbl-td" style={{ fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }} rowSpan={dateRowCount[date]}>
                                     {date?.slice(0,10)}
                                   </td>
                                 )}
-                                <td style={td}>{category}</td>
-                                <td style={td}>{mode}</td>
-                                <td style={td}>{unit}</td>
+                                <td className="tbl-td">{category}</td>
+                                <td className="tbl-td">{mode}</td>
+                                <td className="tbl-td">{unit}</td>
                                 {hasHolder
                                   ? categoryGroups.flatMap((g, gi) =>
                                       g.holders.map((h, hi) => {
@@ -279,17 +278,17 @@ export default function ConditionPage() {
                                         return (
                                           <td
                                             key={`v-${gi}-${hi}`}
-                                            style={{ ...td, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                            className="tbl-td" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
                                           >
                                             {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                                           </td>
                                         )
                                       })
                                     )
-                                  : <td style={td}><span className="badge badge-blue">{keyRows[0]?.value}</span></td>
+                                  : <td className="tbl-td"><span className="badge badge-blue">{keyRows[0]?.value}</span></td>
                                 }
-                                <td style={td}>{keyRows.find(r => r.note)?.note || '-'}</td>
-                                <td style={td}>
+                                <td className="tbl-td">{keyRows.find(r => r.note)?.note || '-'}</td>
+                                <td className="tbl-td">
                                   <div style={{ display: 'flex', gap: 4 }}>
                                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(keyRows[0])}>수정</button>
                                     <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(keyRows[0]?.id)}>삭제</button>
@@ -394,7 +393,7 @@ export default function ConditionPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
