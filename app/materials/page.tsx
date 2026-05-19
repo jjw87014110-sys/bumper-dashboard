@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
@@ -20,8 +21,6 @@ export default function MaterialsPage() {
   const [form, setForm] = useState<any>({ item_no: '', item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -40,7 +39,7 @@ export default function MaterialsPage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
   function openAdd() { setEditItem(null); setForm({ item_no: (data.length + 1), item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, note: '' }); setModal(true) }
   function openEdit(r: any) { setEditItem(r); setForm({ item_no: r.item_no, item_name: r.item_name, spec: r.spec||'', maker: r.maker||'', unit: r.unit, quantity: r.quantity, note: r.note||'' }); setModal(true) }
 
@@ -129,17 +128,17 @@ export default function MaterialsPage() {
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                       <tbody>{data.map(r => (
                         <tr key={r.id}>
-                          <td style={td}>{r.item_no}</td>
-                          <td style={td}>{r.item_name}</td>
-                          <td style={td}>{r.spec||'-'}</td>
-                          <td style={td}>{r.maker||'-'}</td>
-                          <td style={td}>{r.unit}</td>
-                          <td style={td}><span className="badge badge-teal">{r.quantity}</span></td>
-                          <td style={td}>{r.note||'-'}</td>
-                          <td style={td}>
+                          <td className="tbl-td">{r.item_no}</td>
+                          <td className="tbl-td">{r.item_name}</td>
+                          <td className="tbl-td">{r.spec||'-'}</td>
+                          <td className="tbl-td">{r.maker||'-'}</td>
+                          <td className="tbl-td">{r.unit}</td>
+                          <td className="tbl-td"><span className="badge badge-teal">{r.quantity}</span></td>
+                          <td className="tbl-td">{r.note||'-'}</td>
+                          <td className="tbl-td">
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>수정</button>
                               <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
@@ -212,7 +211,7 @@ export default function MaterialsPage() {
           </div>
         </div>
       )}
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
