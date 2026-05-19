@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
@@ -20,8 +21,6 @@ export default function MaintenancePage() {
   const [form, setForm] = useState<any>({ maintenance_date: new Date().toISOString().slice(0,16), shift: '주간', worker: '', alarm_content: '', defect_type: '', action_detail: '', replaced_parts: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').order('no')
@@ -40,7 +39,7 @@ export default function MaintenancePage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
   function openAdd() { setEditItem(null); setForm({ maintenance_date: new Date().toISOString().slice(0,16), shift: '주간', worker: '', alarm_content: '', defect_type: '', action_detail: '', replaced_parts: '', note: '' }); setModal(true) }
   function openEdit(r: any) { setEditItem(r); setForm({ maintenance_date: String(r.maintenance_date||'').slice(0,16), shift: r.shift, worker: r.worker, alarm_content: r.alarm_content||'', defect_type: r.defect_type||'', action_detail: r.action_detail||'', replaced_parts: r.replaced_parts||'', note: r.note||'' }); setModal(true) }
 
@@ -130,18 +129,18 @@ export default function MaintenancePage() {
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead><tr>{['정비일시','주/야','작업자','알람내용','불량유형','조치내역','교체부품','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                        <thead><tr>{['정비일시','주/야','작업자','알람내용','불량유형','조치내역','교체부품','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                         <tbody>{data.map(r => (
                           <tr key={r.id}>
-                            <td style={td}>{String(r.maintenance_date||'').slice(0,16)}</td>
-                            <td style={td}><span className={`badge ${r.shift==='주간'?'badge-amber':'badge-blue'}`}>{r.shift}</span></td>
-                            <td style={td}>{r.worker}</td>
-                            <td style={td}>{r.alarm_content||'-'}</td>
-                            <td style={td}>{r.defect_type||'-'}</td>
-                            <td style={td}>{r.action_detail||'-'}</td>
-                            <td style={td}>{r.replaced_parts||'-'}</td>
-                            <td style={td}>{r.note||'-'}</td>
-                            <td style={td}>
+                            <td className="tbl-td">{String(r.maintenance_date||'').slice(0,16)}</td>
+                            <td className="tbl-td"><span className={`badge ${r.shift==='주간'?'badge-amber':'badge-blue'}`}>{r.shift}</span></td>
+                            <td className="tbl-td">{r.worker}</td>
+                            <td className="tbl-td">{r.alarm_content||'-'}</td>
+                            <td className="tbl-td">{r.defect_type||'-'}</td>
+                            <td className="tbl-td">{r.action_detail||'-'}</td>
+                            <td className="tbl-td">{r.replaced_parts||'-'}</td>
+                            <td className="tbl-td">{r.note||'-'}</td>
+                            <td className="tbl-td">
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>수정</button>
                                 <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
@@ -221,7 +220,7 @@ export default function MaintenancePage() {
           </div>
         </div>
       )}
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
