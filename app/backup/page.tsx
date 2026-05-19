@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -28,14 +29,13 @@ export default function BackupPage() {
   const [loading, setLoading] = useState(true)
   const [backupLoading, setBackupLoading] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   const [backupHistory, setBackupHistory] = useState<any[]>([])
   const [restoreConfirm, setRestoreConfirm] = useState(false)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [autoBackups, setAutoBackups] = useState<any[]>([])
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 4000) }
+  const { showToast, ToastUI } = useToast()
 
   useEffect(() => {
     fetchCounts()
@@ -361,7 +361,7 @@ export default function BackupPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
