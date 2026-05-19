@@ -5,8 +5,6 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 function BarChart({ items, color, max }: { items: any[], color: string, max: number }) {
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   if (items.length === 0) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
 
@@ -28,17 +26,17 @@ function BarChart({ items, color, max }: { items: any[], color: string, max: num
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
-          <th style={th}>순위</th>
-          <th style={th}>No</th>
-          <th style={th}>설비명</th>
-          <th style={{ ...th, textAlign: 'right' as const }}>건수</th>
+          <th className="tbl-th">순위</th>
+          <th className="tbl-th">No</th>
+          <th className="tbl-th">설비명</th>
+          <th className="tbl-th" style={{ textAlign: 'right' as const }}>건수</th>
         </tr></thead>
         <tbody>{items.map((item: any, i: number) => (
           <tr key={item.no}>
-            <td style={td}><span className="badge badge-gray">{i+1}</span></td>
-            <td style={{ ...td, fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</td>
-            <td style={td}>{item.name}</td>
-            <td style={{ ...td, textAlign: 'right', fontWeight: 700, color }}>{item.count}</td>
+            <td className="tbl-td"><span className="badge badge-gray">{i+1}</span></td>
+            <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace' }}>#{String(item.no).padStart(2,'0')}</td>
+            <td className="tbl-td">{item.name}</td>
+            <td className="tbl-td" style={{ textAlign: 'right', fontWeight: 700, color }}>{item.count}</td>
           </tr>
         ))}</tbody>
       </table>
