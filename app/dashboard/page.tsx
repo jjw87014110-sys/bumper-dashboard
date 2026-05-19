@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import Favorites from '@/components/Favorites'
 
 const IMARKING_BASE_DATE = new Date('2026-04-29')
 const IMARKING_BASE_EQ = 1
@@ -620,9 +621,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="content-area">
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
+          <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
             {kpiCards.map(k => (
-              <div key={k.label} className="card" style={{ padding:'16px 18px' }}>
+              <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color }}>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8 }}>{k.label}</div>
                 <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:28, fontWeight:700, color:k.color }}>{loading?'-':k.value}</div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{k.unit}</div>
@@ -703,6 +704,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
+              <Favorites />
             </div>
 
             {/* 달력 */}
