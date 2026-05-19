@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth'
+import CommandPalette from '@/components/CommandPalette'
+import ShortcutHelp from '@/components/ShortcutHelp'
+import RealtimeIndicator from '@/components/RealtimeIndicator'
 
 export const metadata: Metadata = {
   title: '후가공설비 관리 시스템',
@@ -11,7 +14,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {children}
+          <CommandPalette />
+          <ShortcutHelp />
+          <RealtimeIndicator />
+        </AuthProvider>
       </body>
     </html>
   )
