@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 
 export default function MemoPage() {
@@ -69,6 +70,7 @@ export default function MemoPage() {
   async function deleteMemo(id: number) {
     await supabase.from('memos').delete().eq('id', id)
     showToast('삭제되었습니다')
+      logAudit(getCurrentUserName(), 'DELETE', 'memos', '메모 삭제')
     setDeleteId(null)
     if (selected?.id === id) { setSelected(null); setTitle(''); setContent('') }
     fetchMemos()
