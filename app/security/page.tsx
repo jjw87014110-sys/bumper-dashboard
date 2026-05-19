@@ -23,6 +23,9 @@ export default function SecurityPage() {
   const [userForm, setUserForm] = useState({ user_id: '', password: '', pin: '0515', name: '', role: 'user', department: '생산기술' })
   // 접속 로그
   const [logs, setLogs] = useState<any[]>([])
+  // Audit 로그 (데이터 변경 이력)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [auditFilter, setAuditFilter] = useState<string>('all')
   // 세션 정보
   const [sessionExpire, setSessionExpire] = useState<string | null>(null)
 
@@ -32,6 +35,7 @@ export default function SecurityPage() {
     if (userRole === 'admin') {
       fetchUsers()
       fetchLogs()
+      fetchAuditLogs()
     }
     const exp = sessionStorage.getItem('bumper_expire')
     if (exp) setSessionExpire(new Date(Number(exp)).toLocaleString('ko-KR'))
@@ -45,6 +49,11 @@ export default function SecurityPage() {
   async function fetchLogs() {
     const { data } = await supabase.from('access_logs').select('*').order('created_at', { ascending: false }).limit(20)
     setLogs(data || [])
+  }
+
+  async function fetchAuditLogs() {
+    const { data } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50)
+    setAuditLogs(data || [])
   }
 
   async function handlePwChange(e: React.FormEvent) {
@@ -79,6 +88,24 @@ export default function SecurityPage() {
 
   async function handleUserToggle(user: any) {
     await supabase.from('users').update({ is_active: !user.is_active, updated_at: new Date().toISOString() }).eq('id', user.id)
+    fetchUsers()
+  }
+
+  async function handleUserDelete(user: any) {
+    if (user.role === 'admin') { showToast('관리자 계정은 삭제할 수 없습니다', 'error'); return }
+    if (user.name === userName) { showToast('본인 계정은 삭제할 수 없습니다', 'error'); return }
+    if (!confirm(`'${user.name}' 사용자를 정말 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) return
+    const { error } = await supabase.from('users').delete().eq('id', user.id)
+    if (error) { showToast('삭제 실패: ' + error.message, 'error'); return }
+    showToast(`'${user.name}' 사용자가 삭제되었습니다`)
+    // Audit Log 기록
+    await supabase.from('audit_logs').insert([{
+      user_name: userName,
+      action: 'DELETE',
+      target_table: 'users',
+      target_id: user.id,
+      description: `사용자 '${user.name}'(${user.user_id}) 삭제`,
+    }]).then(() => {})
     fetchUsers()
   }
 
@@ -185,12 +212,60 @@ export default function SecurityPage() {
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:u.password, pin:u.pin, name:u.name, role:u.role, department:u.department }); setUserModal(true) }}>수정</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => handleUserToggle(u)}>{u.is_active ? '비활성' : '활성'}</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleUserDelete(u)} disabled={u.role === 'admin' || u.name === userName}>삭제</button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Audit Log: 데이터 변경 이력 (admin only) */}
+          {userRole === 'admin' && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>📋 데이터 변경 이력</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>누가 언제 무엇을 수정했는지 추적</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <select value={auditFilter} onChange={e => setAuditFilter(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                    <option value="all">전체</option>
+                    <option value="CREATE">등록</option>
+                    <option value="UPDATE">수정</option>
+                    <option value="DELETE">삭제</option>
+                  </select>
+                  <button className="btn btn-ghost btn-sm" onClick={fetchAuditLogs}>🔄 새로고침</button>
+                </div>
+              </div>
+              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)' }}>
+                    <tr>
+                      {['시간','사용자','동작','테이블','상세 내용'].map(h => <th key={h} style={th}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.filter(l => auditFilter === 'all' || l.action === auditFilter).length === 0 ? (
+                      <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>변경 이력 없음</td></tr>
+                    ) : auditLogs.filter(l => auditFilter === 'all' || l.action === auditFilter).map((l, i) => (
+                      <tr key={i}>
+                        <td style={{ ...td, fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                        <td style={{ ...td, fontSize: 11, fontWeight: 600 }}>{l.user_name}</td>
+                        <td style={td}>
+                          <span className={`badge ${l.action === 'CREATE' ? 'badge-green' : l.action === 'UPDATE' ? 'badge-blue' : 'badge-red'}`}>
+                            {l.action === 'CREATE' ? '등록' : l.action === 'UPDATE' ? '수정' : '삭제'}
+                          </span>
+                        </td>
+                        <td style={{ ...td, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>{l.target_table}</td>
+                        <td style={{ ...td, fontSize: 11 }}>{l.description || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
