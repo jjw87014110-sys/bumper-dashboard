@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
@@ -29,8 +30,6 @@ export default function AlarmPage() {
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_category: '', holder_no: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -49,7 +48,7 @@ export default function AlarmPage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   function openAdd() {
     setEditItem(null)
@@ -237,18 +236,18 @@ export default function AlarmPage() {
                         <thead>
                           {/* 1행: 카테고리 그룹 헤더 (LH, RH 등) */}
                           <tr>
-                            <th style={th} rowSpan={3}>일자</th>
+                            <th className="tbl-th" rowSpan={3}>일자</th>
                             {categoryGroups.map((g, gi) => (
                               <th
                                 key={`cat-${gi}`}
-                                style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
+                                className="tbl-th" style={{ textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }}
                                 colSpan={g.holders.length * 2}
                               >
                                 {g.category}
                               </th>
                             ))}
-                            <th style={th} rowSpan={3}>비고</th>
-                            <th style={th} rowSpan={3}>관리</th>
+                            <th className="tbl-th" rowSpan={3}>비고</th>
+                            <th className="tbl-th" rowSpan={3}>관리</th>
                           </tr>
                           {/* 2행: 홀더 번호 */}
                           <tr>
@@ -256,7 +255,7 @@ export default function AlarmPage() {
                               g.holders.map((h, hi) => (
                                 <th
                                   key={`h-${gi}-${hi}`}
-                                  style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
+                                  className="tbl-th" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}
                                   colSpan={2}
                                 >
                                   {h.holderNo}
@@ -268,8 +267,8 @@ export default function AlarmPage() {
                           <tr>
                             {categoryGroups.flatMap((g, gi) =>
                               g.holders.flatMap((h, hi) => [
-                                <th key={`p-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
-                                <th key={`w-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
+                                <th key={`p-${gi}-${hi}`} className="tbl-th" style={{ color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
+                                <th key={`w-${gi}-${hi}`} className="tbl-th" style={{ color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
                               ])
                             )}
                           </tr>
@@ -277,7 +276,7 @@ export default function AlarmPage() {
                         <tbody>
                           {dates.length === 0 ? (
                             <tr>
-                              <td style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }} colSpan={categoryGroups.reduce((s, g) => s + g.holders.length * 2, 0) + 3}>
+                              <td className="tbl-td" style={{ textAlign: 'center', color: 'var(--text-muted)' }} colSpan={categoryGroups.reduce((s, g) => s + g.holders.length * 2, 0) + 3}>
                                 데이터 없음
                               </td>
                             </tr>
@@ -286,19 +285,19 @@ export default function AlarmPage() {
                             const note = dayRows.find(r => r.note && r.note !== '-')?.note || '-'
                             return (
                               <tr key={date}>
-                                <td style={td}>{date}</td>
+                                <td className="tbl-td">{date}</td>
                                 {categoryGroups.flatMap((g, gi) =>
                                   g.holders.flatMap((h, hi) => {
                                     const hr = dayRows.find(r => r.holder_no === h.key)
                                     const leftBorder = hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined
                                     return [
-                                      <td key={`p-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: leftBorder }}><span className={`badge ${(hr?.punch_alarm||0)>0?'badge-blue':'badge-gray'}`}>{hr?.punch_alarm||0}</span></td>,
-                                      <td key={`w-${gi}-${hi}`} style={{ ...td, textAlign: 'center' }}><span className={`badge ${(hr?.weld_alarm||0)>0?'badge-red':'badge-gray'}`}>{hr?.weld_alarm||0}</span></td>,
+                                      <td key={`p-${gi}-${hi}`} className="tbl-td" style={{ textAlign: 'center', borderLeft: leftBorder }}><span className={`badge ${(hr?.punch_alarm||0)>0?'badge-blue':'badge-gray'}`}>{hr?.punch_alarm||0}</span></td>,
+                                      <td key={`w-${gi}-${hi}`} className="tbl-td" style={{ textAlign: 'center' }}><span className={`badge ${(hr?.weld_alarm||0)>0?'badge-red':'badge-gray'}`}>{hr?.weld_alarm||0}</span></td>,
                                     ]
                                   })
                                 )}
-                                <td style={td}>{note}</td>
-                                <td style={td}>
+                                <td className="tbl-td">{note}</td>
+                                <td className="tbl-td">
                                   <div style={{ display: 'flex', gap: 4 }}>
                                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(dayRows[0])}>수정</button>
                                     <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(dayRows[0]?.id)}>삭제</button>
@@ -312,15 +311,15 @@ export default function AlarmPage() {
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['일자','펀칭불량','융착불량','합계','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{['일자','펀칭불량','융착불량','합계','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                       <tbody>{filtered.map(r => (
                         <tr key={r.id}>
-                          <td style={td}>{r.date}</td>
-                          <td style={td}><span className={`badge ${r.punch_alarm>0?'badge-blue':'badge-gray'}`}>{r.punch_alarm}</span></td>
-                          <td style={td}><span className={`badge ${r.weld_alarm>0?'badge-red':'badge-gray'}`}>{r.weld_alarm}</span></td>
-                          <td style={td}><span className={`badge ${(r.punch_alarm+r.weld_alarm)>0?'badge-amber':'badge-green'}`}>{r.punch_alarm+r.weld_alarm}</span></td>
-                          <td style={td}>{r.note||'-'}</td>
-                          <td style={td}>
+                          <td className="tbl-td">{r.date}</td>
+                          <td className="tbl-td"><span className={`badge ${r.punch_alarm>0?'badge-blue':'badge-gray'}`}>{r.punch_alarm}</span></td>
+                          <td className="tbl-td"><span className={`badge ${r.weld_alarm>0?'badge-red':'badge-gray'}`}>{r.weld_alarm}</span></td>
+                          <td className="tbl-td"><span className={`badge ${(r.punch_alarm+r.weld_alarm)>0?'badge-amber':'badge-green'}`}>{r.punch_alarm+r.weld_alarm}</span></td>
+                          <td className="tbl-td">{r.note||'-'}</td>
+                          <td className="tbl-td">
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>수정</button>
                               <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
@@ -414,7 +413,7 @@ export default function AlarmPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
