@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -18,8 +19,6 @@ export default function ImarkingPage() {
   const [inspectNote, setInspectNote] = useState('')
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' as const }
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -38,7 +37,7 @@ export default function ImarkingPage() {
     setData(data || [])
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   // 점검일 등록 (아이마킹 점검 완료 기록)
   async function handleAddInspection() {
@@ -144,12 +143,12 @@ export default function ImarkingPage() {
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>점검 이력 없음 — 점검 완료 시 등록해주세요</div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['점검일','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{['점검일','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                       <tbody>{inspections.map(r => (
                         <tr key={r.id}>
-                          <td style={td}><span className="badge badge-green">{(r.change_date||'').slice(0,10)}</span></td>
-                          <td style={td}>{r.note||'-'}</td>
-                          <td style={td}>
+                          <td className="tbl-td"><span className="badge badge-green">{(r.change_date||'').slice(0,10)}</span></td>
+                          <td className="tbl-td">{r.note||'-'}</td>
+                          <td className="tbl-td">
                             <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
                           </td>
                         </tr>
@@ -165,16 +164,16 @@ export default function ImarkingPage() {
                       기타 데이터 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>{others.length}건</span>
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['변경일자','구분','모드','단위','값','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{['변경일자','구분','모드','단위','값','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                       <tbody>{others.map(r => (
                         <tr key={r.id}>
-                          <td style={td}>{(r.change_date||'').slice(0,10)}</td>
-                          <td style={td}>{r.category}</td>
-                          <td style={td}>{r.mode}</td>
-                          <td style={td}>{r.unit}</td>
-                          <td style={td}><span className="badge badge-blue">{r.value}</span></td>
-                          <td style={td}>{r.note||'-'}</td>
-                          <td style={td}>
+                          <td className="tbl-td">{(r.change_date||'').slice(0,10)}</td>
+                          <td className="tbl-td">{r.category}</td>
+                          <td className="tbl-td">{r.mode}</td>
+                          <td className="tbl-td">{r.unit}</td>
+                          <td className="tbl-td"><span className="badge badge-blue">{r.value}</span></td>
+                          <td className="tbl-td">{r.note||'-'}</td>
+                          <td className="tbl-td">
                             <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(r.id)}>삭제</button>
                           </td>
                         </tr>
@@ -230,7 +229,7 @@ export default function ImarkingPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
