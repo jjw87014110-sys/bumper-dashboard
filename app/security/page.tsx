@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function SecurityPage() {
   const { userRole, userName, changePassword, changePin } = useRequireAuth()
 
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   // 비밀번호 변경
   const [oldPw, setOldPw] = useState('')
   const [newPw, setNewPw] = useState('')
@@ -29,7 +29,7 @@ export default function SecurityPage() {
   // 세션 정보
   const [sessionExpire, setSessionExpire] = useState<string | null>(null)
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   useEffect(() => {
     if (userRole === 'admin') {
@@ -195,20 +195,20 @@ export default function SecurityPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    {['아이디','이름','부서','권한','상태','관리'].map(h => <th key={h} style={th}>{h}</th>)}
+                    {['아이디','이름','부서','권한','상태','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>등록된 사용자 없음</td></tr>
+                    <tr><td colSpan={6} className="tbl-td" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>등록된 사용자 없음</td></tr>
                   ) : users.map(u => (
                     <tr key={u.id}>
-                      <td style={td}>{u.user_id}</td>
-                      <td style={td}>{u.name}</td>
-                      <td style={td}>{u.department}</td>
-                      <td style={td}><span className={`badge ${u.role === 'admin' ? 'badge-red' : 'badge-blue'}`}>{u.role === 'admin' ? '관리자' : '일반'}</span></td>
-                      <td style={td}><span className={`badge ${u.is_active ? 'badge-green' : 'badge-gray'}`}>{u.is_active ? '활성' : '비활성'}</span></td>
-                      <td style={td}>
+                      <td className="tbl-td">{u.user_id}</td>
+                      <td className="tbl-td">{u.name}</td>
+                      <td className="tbl-td">{u.department}</td>
+                      <td className="tbl-td"><span className={`badge ${u.role === 'admin' ? 'badge-red' : 'badge-blue'}`}>{u.role === 'admin' ? '관리자' : '일반'}</span></td>
+                      <td className="tbl-td"><span className={`badge ${u.is_active ? 'badge-green' : 'badge-gray'}`}>{u.is_active ? '활성' : '비활성'}</span></td>
+                      <td className="tbl-td">
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:u.password, pin:u.pin, name:u.name, role:u.role, department:u.department }); setUserModal(true) }}>수정</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => handleUserToggle(u)}>{u.is_active ? '비활성' : '활성'}</button>
@@ -244,23 +244,23 @@ export default function SecurityPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)' }}>
                     <tr>
-                      {['시간','사용자','동작','테이블','상세 내용'].map(h => <th key={h} style={th}>{h}</th>)}
+                      {['시간','사용자','동작','테이블','상세 내용'].map(h => <th key={h} className="tbl-th">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {auditLogs.filter(l => auditFilter === 'all' || l.action === auditFilter).length === 0 ? (
-                      <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>변경 이력 없음</td></tr>
+                      <tr><td colSpan={5} className="tbl-td" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>변경 이력 없음</td></tr>
                     ) : auditLogs.filter(l => auditFilter === 'all' || l.action === auditFilter).map((l, i) => (
                       <tr key={i}>
-                        <td style={{ ...td, fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                        <td style={{ ...td, fontSize: 11, fontWeight: 600 }}>{l.user_name}</td>
-                        <td style={td}>
+                        <td className="tbl-td" style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{l.created_at ? new Date(l.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                        <td className="tbl-td" style={{ fontSize: 11, fontWeight: 600 }}>{l.user_name}</td>
+                        <td className="tbl-td">
                           <span className={`badge ${l.action === 'CREATE' ? 'badge-green' : l.action === 'UPDATE' ? 'badge-blue' : 'badge-red'}`}>
                             {l.action === 'CREATE' ? '등록' : l.action === 'UPDATE' ? '수정' : '삭제'}
                           </span>
                         </td>
-                        <td style={{ ...td, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>{l.target_table}</td>
-                        <td style={{ ...td, fontSize: 11 }}>{l.description || '-'}</td>
+                        <td className="tbl-td" style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>{l.target_table}</td>
+                        <td className="tbl-td" style={{ fontSize: 11 }}>{l.description || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -280,18 +280,18 @@ export default function SecurityPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      {['시간','IP','상태','User Agent'].map(h => <th key={h} style={th}>{h}</th>)}
+                      {['시간','IP','상태','User Agent'].map(h => <th key={h} className="tbl-th">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {logs.length === 0 ? (
-                      <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>로그 없음</td></tr>
+                      <tr><td colSpan={4} className="tbl-td" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>로그 없음</td></tr>
                     ) : logs.map((l, i) => (
                       <tr key={i}>
-                        <td style={td}>{l.created_at ? new Date(l.created_at).toLocaleString('ko-KR') : '-'}</td>
-                        <td style={{ ...td, fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{l.ip_address || '-'}</td>
-                        <td style={td}><span className={`badge ${l.status === 'allowed' ? 'badge-green' : 'badge-red'}`}>{l.status}</span></td>
-                        <td style={{ ...td, fontSize: 9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.user_agent?.slice(0, 60) || '-'}</td>
+                        <td className="tbl-td">{l.created_at ? new Date(l.created_at).toLocaleString('ko-KR') : '-'}</td>
+                        <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{l.ip_address || '-'}</td>
+                        <td className="tbl-td"><span className={`badge ${l.status === 'allowed' ? 'badge-green' : 'badge-red'}`}>{l.status}</span></td>
+                        <td className="tbl-td" style={{ fontSize: 9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.user_agent?.slice(0, 60) || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -348,7 +348,7 @@ export default function SecurityPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
