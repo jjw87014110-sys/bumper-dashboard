@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useEffect, useState, useMemo } from 'react'
+import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -170,7 +170,7 @@ const DAILY_TODOS = [
 const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
 
 export default function DashboardPage() {
-  useAuth()
+  useRequireAuth()
   const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
   const [equipByType, setEquipByType] = useState<any>({})
   const [loading, setLoading] = useState(true)
@@ -460,11 +460,29 @@ export default function DashboardPage() {
     setTimeout(() => setShowFireworks(false), 4000)
   }
 
-  const firstDay = new Date(calYear, calMonth, 1)
-  const lastDay = new Date(calYear, calMonth+1, 0)
-  const cells: (Date|null)[] = []
-  for (let i=0;i<firstDay.getDay();i++) cells.push(null)
-  for (let d=1;d<=lastDay.getDate();d++) cells.push(new Date(calYear,calMonth,d))
+  const calendarData = useMemo(() => {
+    const firstDay = new Date(calYear, calMonth, 1)
+    const lastDay = new Date(calYear, calMonth+1, 0)
+    const cells: Array<{ date: Date|null; dateStr?: string; isToday?: boolean; isWeekend?: boolean; isFriday?: boolean; wd?: number; imarkingEq?: number } | null> = []
+    for (let i=0;i<firstDay.getDay();i++) cells.push(null)
+    for (let d=1;d<=lastDay.getDate();d++) {
+      const date = new Date(calYear, calMonth, d)
+      const dateStr = toLocalDate(date)
+      const wd = date.getDay()
+      cells.push({
+        date,
+        dateStr,
+        isToday: dateStr === todayKey,
+        isWeekend: wd === 0 || wd === 6,
+        isFriday: wd === 5,
+        wd,
+        imarkingEq: getImarkingSchedule(date),
+      })
+    }
+    return cells
+  }, [calYear, calMonth, todayKey])
+
+  const cells = calendarData
 
   const isToday = selectedDate === todayKey
   const selectedDateObj = new Date(selectedDate+'T12:00:00')
@@ -703,17 +721,18 @@ export default function DashboardPage() {
                 ))}
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
-                {cells.map((date,idx) => {
-                  if (!date) return <div key={idx} style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }} />
-                  const dateStr = toLocalDate(date)
-                  const isToday2 = dateStr===todayKey
+                {cells.map((cell,idx) => {
+                  if (!cell) return <div key={idx} style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }} />
+                  const date = cell.date!
+                  const dateStr = cell.dateStr!
+                  const isToday2 = cell.isToday!
                   const isSelected = dateStr===selectedDate
-                  const isWeekend = date.getDay()===0||date.getDay()===6
-                  const isFriday = date.getDay()===5
-                  const imarkingEq = getImarkingSchedule(date)
+                  const isWeekend = cell.isWeekend!
+                  const isFriday = cell.isFriday!
+                  const imarkingEq = cell.imarkingEq!
                   const dayEvents = events[dateStr]||[]
                   const dayCompleted = completedDates[dateStr]||[]
-                  const wd = date.getDay()
+                  const wd = cell.wd!
                   return (
                     <div key={idx}
                       onClick={() => handleCalendarDateClick(dateStr)}
