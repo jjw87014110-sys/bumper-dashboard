@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 import { exportScratchData } from '@/lib/exportCSV'
 
@@ -78,10 +79,12 @@ export default function ScratchPage() {
       const { error } = await supabase.from('scratch').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); setUploading(false); return }
       showToast('수정되었습니다')
+      logAudit(getCurrentUserName(), 'UPDATE', 'scratch', '찍힘 수정', { targetId: editItem?.id })
     } else {
       const { error } = await supabase.from('scratch').insert([payload])
       if (error) { showToast('등록 실패', 'error'); setUploading(false); return }
       showToast('등록되었습니다')
+      logAudit(getCurrentUserName(), 'CREATE', 'scratch', '찍힘 등록')
     }
     setUploading(false)
     setModal(false); reload()
@@ -89,7 +92,8 @@ export default function ScratchPage() {
 
   async function handleDelete(id: number) {
     await supabase.from('scratch').delete().eq('id', id)
-    showToast('삭제되었습니다'); setDeleteId(null); reload()
+    showToast('삭제되었습니다')
+      logAudit(getCurrentUserName(), 'DELETE', 'scratch', '찍힘 삭제'); setDeleteId(null); reload()
   }
 
   return (
