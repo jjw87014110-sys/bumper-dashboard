@@ -20,7 +20,6 @@ const navItems = [
   { href: '/staff', label: 'HR Info', icon: 'user' },
   { href: '/memo', label: 'Memo', icon: 'memo' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
-  { href: '/worklog', label: 'Work Log', icon: 'worklog' },
   { divider: true },
   { href: '/backup', label: 'Backup', icon: 'box' },
   { href: '/security', label: 'Security', icon: 'shield' },
