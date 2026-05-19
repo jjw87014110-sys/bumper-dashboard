@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
+import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -31,8 +32,6 @@ async function loadTab(tab: string, no: number) {
 }
 
 function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipmentNo: number }) {
-  const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }
-  const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', background: 'var(--bg-card)', textAlign: 'left' }
 
   if (rows.length === 0)
     return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
@@ -81,18 +80,18 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={th} rowSpan={3}>일자</th>
+                <th className="tbl-th" rowSpan={3}>일자</th>
                 {categoryGroups.map((g, gi) => (
-                  <th key={`cat-${gi}`} style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length * 2}>
+                  <th key={`cat-${gi}`} className="tbl-th" style={{ textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length * 2}>
                     {g.category}
                   </th>
                 ))}
-                <th style={th} rowSpan={3}>비고</th>
+                <th className="tbl-th" rowSpan={3}>비고</th>
               </tr>
               <tr>
                 {categoryGroups.flatMap((g, gi) =>
                   g.holders.map((h, hi) => (
-                    <th key={`h-${gi}-${hi}`} style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={2}>
+                    <th key={`h-${gi}-${hi}`} className="tbl-th" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={2}>
                       {h.holderNo}
                     </th>
                   ))
@@ -101,8 +100,8 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
               <tr>
                 {categoryGroups.flatMap((g, gi) =>
                   g.holders.flatMap((h, hi) => [
-                    <th key={`p-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
-                    <th key={`w-${gi}-${hi}`} style={{ ...th, color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
+                    <th key={`p-${gi}-${hi}`} className="tbl-th" style={{ color: 'var(--accent-blue)', textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>펀칭</th>,
+                    <th key={`w-${gi}-${hi}`} className="tbl-th" style={{ color: 'var(--accent-red)', textAlign: 'center' }}>융착</th>,
                   ])
                 )}
               </tr>
@@ -113,22 +112,22 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
                 const note = dayRows.find((r: any) => r.note && r.note !== '-')?.note || '-'
                 return (
                   <tr key={date}>
-                    <td style={td}>{date}</td>
+                    <td className="tbl-td">{date}</td>
                     {categoryGroups.flatMap((g, gi) =>
                       g.holders.flatMap((h, hi) => {
                         const hr = dayRows.find((r: any) => r.holder_no === h.key)
                         const leftBorder = hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined
                         return [
-                          <td key={`p-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: leftBorder }}>
+                          <td key={`p-${gi}-${hi}`} className="tbl-td" style={{ textAlign: 'center', borderLeft: leftBorder }}>
                             <span className={`badge ${(hr?.punch_alarm || 0) > 0 ? 'badge-blue' : 'badge-gray'}`}>{hr?.punch_alarm || 0}</span>
                           </td>,
-                          <td key={`w-${gi}-${hi}`} style={{ ...td, textAlign: 'center' }}>
+                          <td key={`w-${gi}-${hi}`} className="tbl-td" style={{ textAlign: 'center' }}>
                             <span className={`badge ${(hr?.weld_alarm || 0) > 0 ? 'badge-red' : 'badge-gray'}`}>{hr?.weld_alarm || 0}</span>
                           </td>,
                         ]
                       })
                     )}
-                    <td style={td}>{note}</td>
+                    <td className="tbl-td">{note}</td>
                   </tr>
                 )
               })}
@@ -140,14 +139,14 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
     return (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{['일자', '펀칭불량', '융착불량', '합계', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+        <thead><tr>{['일자', '펀칭불량', '융착불량', '합계', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
         <tbody>{rows.map((r: any, i: number) => (
           <tr key={i}>
-            <td style={td}>{r.date}</td>
-            <td style={td}><span className={`badge ${r.punch_alarm > 0 ? 'badge-blue' : 'badge-gray'}`}>{r.punch_alarm}</span></td>
-            <td style={td}><span className={`badge ${r.weld_alarm > 0 ? 'badge-red' : 'badge-gray'}`}>{r.weld_alarm}</span></td>
-            <td style={td}><span className={`badge ${(r.punch_alarm + r.weld_alarm) > 0 ? 'badge-amber' : 'badge-green'}`}>{r.punch_alarm + r.weld_alarm}</span></td>
-            <td style={td}>{r.note || '-'}</td>
+            <td className="tbl-td">{r.date}</td>
+            <td className="tbl-td"><span className={`badge ${r.punch_alarm > 0 ? 'badge-blue' : 'badge-gray'}`}>{r.punch_alarm}</span></td>
+            <td className="tbl-td"><span className={`badge ${r.weld_alarm > 0 ? 'badge-red' : 'badge-gray'}`}>{r.weld_alarm}</span></td>
+            <td className="tbl-td"><span className={`badge ${(r.punch_alarm + r.weld_alarm) > 0 ? 'badge-amber' : 'badge-green'}`}>{r.punch_alarm + r.weld_alarm}</span></td>
+            <td className="tbl-td">{r.note || '-'}</td>
           </tr>
         ))}</tbody>
       </table>
@@ -185,21 +184,21 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={th} rowSpan={2}>변경일자</th>
-                <th style={th} rowSpan={2}>구분</th>
-                <th style={th} rowSpan={2}>모드</th>
-                <th style={th} rowSpan={2}>단위</th>
+                <th className="tbl-th" rowSpan={2}>변경일자</th>
+                <th className="tbl-th" rowSpan={2}>구분</th>
+                <th className="tbl-th" rowSpan={2}>모드</th>
+                <th className="tbl-th" rowSpan={2}>단위</th>
                 {categoryGroups.map((g, gi) => (
-                  <th key={`cat-${gi}`} style={{ ...th, textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length}>
+                  <th key={`cat-${gi}`} className="tbl-th" style={{ textAlign: 'center', borderLeft: gi > 0 ? '2px solid var(--border)' : undefined }} colSpan={g.holders.length}>
                     {g.category}
                   </th>
                 ))}
-                <th style={th} rowSpan={2}>비고</th>
+                <th className="tbl-th" rowSpan={2}>비고</th>
               </tr>
               <tr>
                 {categoryGroups.flatMap((g, gi) =>
                   g.holders.map((h, hi) => (
-                    <th key={`h-${gi}-${hi}`} style={{ ...th, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
+                    <th key={`h-${gi}-${hi}`} className="tbl-th" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
                       {h.holderNo}
                     </th>
                   ))
@@ -217,24 +216,24 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
                 return (
                   <tr key={key}>
                     {showDate && (
-                      <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }} rowSpan={dateRowCount[date]}>
+                      <td className="tbl-td" style={{ fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'top' }} rowSpan={dateRowCount[date]}>
                         {date?.slice(0, 10)}
                       </td>
                     )}
-                    <td style={td}>{category}</td>
-                    <td style={td}>{mode}</td>
-                    <td style={td}>{unit}</td>
+                    <td className="tbl-td">{category}</td>
+                    <td className="tbl-td">{mode}</td>
+                    <td className="tbl-td">{unit}</td>
                     {categoryGroups.flatMap((g, gi) =>
                       g.holders.map((h, hi) => {
                         const hr = keyRows.find((r: any) => r.holder_no === h.key)
                         return (
-                          <td key={`v-${gi}-${hi}`} style={{ ...td, textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
+                          <td key={`v-${gi}-${hi}`} className="tbl-td" style={{ textAlign: 'center', borderLeft: hi === 0 && gi > 0 ? '2px solid var(--border)' : undefined }}>
                             {hr ? <span className="badge badge-blue">{hr.value}</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                           </td>
                         )
                       })
                     )}
-                    <td style={td}>{keyRows.find((r: any) => r.note)?.note || '-'}</td>
+                    <td className="tbl-td">{keyRows.find((r: any) => r.note)?.note || '-'}</td>
                   </tr>
                 )
               })}
@@ -246,15 +245,15 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
     return (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+        <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
         <tbody>{rows.map((r: any, i: number) => (
           <tr key={i}>
-            <td style={td}>{(r.change_date || '').slice(0, 10)}</td>
-            <td style={td}>{r.category}</td>
-            <td style={td}>{r.mode}</td>
-            <td style={td}>{r.unit}</td>
-            <td style={td}><span className="badge badge-blue">{r.value}</span></td>
-            <td style={td}>{r.note || '-'}</td>
+            <td className="tbl-td">{(r.change_date || '').slice(0, 10)}</td>
+            <td className="tbl-td">{r.category}</td>
+            <td className="tbl-td">{r.mode}</td>
+            <td className="tbl-td">{r.unit}</td>
+            <td className="tbl-td"><span className="badge badge-blue">{r.value}</span></td>
+            <td className="tbl-td">{r.note || '-'}</td>
           </tr>
         ))}</tbody>
       </table>
@@ -263,18 +262,18 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
   if (tab === '찍힘') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['일자', '오전/오후', '차종', '구분', '찍힘부위', '지그상태', '설비문제', '조치', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{['일자', '오전/오후', '차종', '구분', '찍힘부위', '지그상태', '설비문제', '조치', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
       <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{r.date}</td>
-          <td style={td}>{r.time_of_day}</td>
-          <td style={td}><span className="badge badge-gray">{r.model}</span></td>
-          <td style={td}>{r.category}</td>
-          <td style={td}>{r.scratch_location}</td>
-          <td style={td}><span className={`badge ${r.jig_status === '양호' ? 'badge-green' : 'badge-red'}`}>{r.jig_status}</span></td>
-          <td style={td}><span className={`badge ${r.equipment_issue === '해당없음' ? 'badge-gray' : 'badge-amber'}`}>{r.equipment_issue}</span></td>
-          <td style={td}>{r.action || '-'}</td>
-          <td style={td}>{r.note || '-'}</td>
+          <td className="tbl-td">{r.date}</td>
+          <td className="tbl-td">{r.time_of_day}</td>
+          <td className="tbl-td"><span className="badge badge-gray">{r.model}</span></td>
+          <td className="tbl-td">{r.category}</td>
+          <td className="tbl-td">{r.scratch_location}</td>
+          <td className="tbl-td"><span className={`badge ${r.jig_status === '양호' ? 'badge-green' : 'badge-red'}`}>{r.jig_status}</span></td>
+          <td className="tbl-td"><span className={`badge ${r.equipment_issue === '해당없음' ? 'badge-gray' : 'badge-amber'}`}>{r.equipment_issue}</span></td>
+          <td className="tbl-td">{r.action || '-'}</td>
+          <td className="tbl-td">{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -282,15 +281,15 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
   if (tab === '아이마킹') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{['변경일자', '구분', '모드', '단위', '값', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
       <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{(r.change_date || '').slice(0, 10)}</td>
-          <td style={td}>{r.category}</td>
-          <td style={td}>{r.mode}</td>
-          <td style={td}>{r.unit}</td>
-          <td style={td}><span className="badge badge-blue">{r.value}</span></td>
-          <td style={td}>{r.note || '-'}</td>
+          <td className="tbl-td">{(r.change_date || '').slice(0, 10)}</td>
+          <td className="tbl-td">{r.category}</td>
+          <td className="tbl-td">{r.mode}</td>
+          <td className="tbl-td">{r.unit}</td>
+          <td className="tbl-td"><span className="badge badge-blue">{r.value}</span></td>
+          <td className="tbl-td">{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -298,17 +297,17 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
   if (tab === '정비이력') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['정비일시', '주/야', '작업자', '알람내용', '불량유형', '조치내역', '교체부품', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{['정비일시', '주/야', '작업자', '알람내용', '불량유형', '조치내역', '교체부품', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
       <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{String(r.maintenance_date || '').slice(0, 16)}</td>
-          <td style={td}><span className={`badge ${r.shift === '주간' ? 'badge-amber' : 'badge-blue'}`}>{r.shift}</span></td>
-          <td style={td}>{r.worker}</td>
-          <td style={td}>{r.alarm_content || '-'}</td>
-          <td style={td}>{r.defect_type || '-'}</td>
-          <td style={td}>{r.action_detail || '-'}</td>
-          <td style={td}>{r.replaced_parts || '-'}</td>
-          <td style={td}>{r.note || '-'}</td>
+          <td className="tbl-td">{String(r.maintenance_date || '').slice(0, 16)}</td>
+          <td className="tbl-td"><span className={`badge ${r.shift === '주간' ? 'badge-amber' : 'badge-blue'}`}>{r.shift}</span></td>
+          <td className="tbl-td">{r.worker}</td>
+          <td className="tbl-td">{r.alarm_content || '-'}</td>
+          <td className="tbl-td">{r.defect_type || '-'}</td>
+          <td className="tbl-td">{r.action_detail || '-'}</td>
+          <td className="tbl-td">{r.replaced_parts || '-'}</td>
+          <td className="tbl-td">{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -316,16 +315,16 @@ function TabTable({ tab, rows, equipmentNo }: { tab: string; rows: any[]; equipm
 
   if (tab === '자재') return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead><tr>{['No', '품목명', '규격', 'MAKER', '단위', '수량', '비고'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{['No', '품목명', '규격', 'MAKER', '단위', '수량', '비고'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
       <tbody>{rows.map((r: any, i: number) => (
         <tr key={i}>
-          <td style={td}>{r.item_no}</td>
-          <td style={td}>{r.item_name}</td>
-          <td style={td}>{r.spec || '-'}</td>
-          <td style={td}>{r.maker || '-'}</td>
-          <td style={td}>{r.unit}</td>
-          <td style={td}><span className="badge badge-teal">{r.quantity}</span></td>
-          <td style={td}>{r.note || '-'}</td>
+          <td className="tbl-td">{r.item_no}</td>
+          <td className="tbl-td">{r.item_name}</td>
+          <td className="tbl-td">{r.spec || '-'}</td>
+          <td className="tbl-td">{r.maker || '-'}</td>
+          <td className="tbl-td">{r.unit}</td>
+          <td className="tbl-td"><span className="badge badge-teal">{r.quantity}</span></td>
+          <td className="tbl-td">{r.note || '-'}</td>
         </tr>
       ))}</tbody>
     </table>
@@ -433,7 +432,7 @@ export default function EquipmentPage() {
     setLoading(false)
   }
 
-  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const { showToast, ToastUI } = useToast()
 
   function openAdd() {
     const maxNo = data.length > 0 ? Math.max(...data.map(d => d.no)) + 1 : 1
@@ -563,7 +562,7 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+      <ToastUI />
     </div>
   )
 }
