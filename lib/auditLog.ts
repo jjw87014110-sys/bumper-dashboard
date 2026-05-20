@@ -30,9 +30,9 @@ export async function logAudit(
 }
 
 /**
- * 현재 사용자명 가져오기 (sessionStorage 기반)
+ * 현재 사용자명 가져오기 (localStorage 기반)
  */
 export function getCurrentUserName(): string {
   if (typeof window === 'undefined') return '시스템'
-  return sessionStorage.getItem('bumper_name') || '익명'
+  return localStorage.getItem('bumper_name') || '익명'
 }
