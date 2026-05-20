@@ -41,20 +41,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // 세션 만료 확인
-    const expire = sessionStorage.getItem(SESSION_EXPIRE_KEY)
+    const expire = localStorage.getItem(SESSION_EXPIRE_KEY)
     if (expire && Date.now() > Number(expire)) {
       // 세션 만료 → 강제 로그아웃
-      sessionStorage.removeItem(SESSION_KEY)
-      sessionStorage.removeItem(PIN_KEY)
-      sessionStorage.removeItem(SESSION_EXPIRE_KEY)
-      sessionStorage.removeItem(ROLE_KEY)
-      sessionStorage.removeItem('bumper_name')
+      localStorage.removeItem(SESSION_KEY)
+      localStorage.removeItem(PIN_KEY)
+      localStorage.removeItem(SESSION_EXPIRE_KEY)
+      localStorage.removeItem(ROLE_KEY)
+      localStorage.removeItem('bumper_name')
       return
     }
-    const s = sessionStorage.getItem(SESSION_KEY)
-    const p = sessionStorage.getItem(PIN_KEY)
-    const r = sessionStorage.getItem(ROLE_KEY) as 'admin' | 'user' | null
-    const n = sessionStorage.getItem('bumper_name')
+    const s = localStorage.getItem(SESSION_KEY)
+    const p = localStorage.getItem(PIN_KEY)
+    const r = localStorage.getItem(ROLE_KEY) as 'admin' | 'user' | null
+    const n = localStorage.getItem('bumper_name')
     if (s === 'ok') setIsLoggedIn(true)
     if (p === 'ok') setIsPinVerified(true)
     if (r) setUserRole(r)
@@ -76,10 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const envId = process.env.NEXT_PUBLIC_ADMIN_ID || '103613'
       const envPw = process.env.NEXT_PUBLIC_ADMIN_PW || '103613'
       if (id === envId && pw === envPw) {
-        sessionStorage.setItem(SESSION_KEY, 'ok')
-        sessionStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
-        sessionStorage.setItem(ROLE_KEY, 'admin')
-        sessionStorage.setItem('bumper_name', '관리자')
+        localStorage.setItem(SESSION_KEY, 'ok')
+        localStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
+        localStorage.setItem(ROLE_KEY, 'admin')
+        localStorage.setItem('bumper_name', '관리자')
         setIsLoggedIn(true)
         setUserRole('admin')
         setUserName('관리자')
@@ -88,10 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    sessionStorage.setItem(SESSION_KEY, 'ok')
-    sessionStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
-    sessionStorage.setItem(ROLE_KEY, data.role || 'user')
-    sessionStorage.setItem('bumper_name', data.name || id)
+    localStorage.setItem(SESSION_KEY, 'ok')
+    localStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
+    localStorage.setItem(ROLE_KEY, data.role || 'user')
+    localStorage.setItem('bumper_name', data.name || id)
     setIsLoggedIn(true)
     setUserRole(data.role || 'user')
     setUserName(data.name || id)
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyPin = async (pin: string) => {
     // DB에서 PIN 확인
-    const name = sessionStorage.getItem('bumper_name') || ''
+    const name = localStorage.getItem('bumper_name') || ''
     const { data } = await supabase
       .from('users')
       .select('pin')
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const validPin = data?.pin || process.env.NEXT_PUBLIC_ADMIN_PIN || '0515'
     if (pin === validPin) {
-      sessionStorage.setItem(PIN_KEY, 'ok')
+      localStorage.setItem(PIN_KEY, 'ok')
       setIsPinVerified(true)
       return true
     }
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const changePassword = async (oldPw: string, newPw: string) => {
-    const name = sessionStorage.getItem('bumper_name') || ''
+    const name = localStorage.getItem('bumper_name') || ''
     const { data } = await supabase.from('users').select('*').eq('name', name).single()
     if (!data) return { ok: false, msg: '사용자 정보를 찾을 수 없습니다' }
     if (data.password !== oldPw) return { ok: false, msg: '현재 비밀번호가 올바르지 않습니다' }
@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const changePin = async (oldPin: string, newPin: string) => {
-    const name = sessionStorage.getItem('bumper_name') || ''
+    const name = localStorage.getItem('bumper_name') || ''
     const { data } = await supabase.from('users').select('*').eq('name', name).single()
     if (!data) return { ok: false, msg: '사용자 정보를 찾을 수 없습니다' }
     if (data.pin !== oldPin) return { ok: false, msg: '현재 PIN이 올바르지 않습니다' }
@@ -139,11 +139,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    sessionStorage.removeItem(SESSION_KEY)
-    sessionStorage.removeItem(PIN_KEY)
-    sessionStorage.removeItem(SESSION_EXPIRE_KEY)
-    sessionStorage.removeItem(ROLE_KEY)
-    sessionStorage.removeItem('bumper_name')
+    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(PIN_KEY)
+    localStorage.removeItem(SESSION_EXPIRE_KEY)
+    localStorage.removeItem(ROLE_KEY)
+    localStorage.removeItem('bumper_name')
     setIsLoggedIn(false)
     setIsPinVerified(false)
     setUserRole(null)
