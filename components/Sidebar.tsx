@@ -11,8 +11,7 @@ const navItems = [
   { href: '/equipment', label: 'Equipment', icon: 'server' },
   { divider: true },
   // ── 매일 업무 (07:30 → 08:00 → 16:00 시간 순) ──
-  { href: '/imarking', label: 'i-Marking', icon: 'chart' },
-  { href: '/scratch', label: 'Scratch', icon: 'alert' },
+  { href: '/inspection', label: 'Inspection', icon: 'chart' },
   { href: '/alarm', label: 'Alarm', icon: 'bell' },
   { divider: true },
   // ── 이력 관리 (정비 → 자재 → 조건) ──
