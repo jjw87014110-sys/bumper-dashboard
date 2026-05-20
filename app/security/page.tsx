@@ -37,7 +37,7 @@ export default function SecurityPage() {
       fetchLogs()
       fetchAuditLogs()
     }
-    const exp = sessionStorage.getItem('bumper_expire')
+    const exp = localStorage.getItem('bumper_expire')
     if (exp) setSessionExpire(new Date(Number(exp)).toLocaleString('ko-KR'))
   }, [userRole])
 
