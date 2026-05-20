@@ -269,13 +269,17 @@ export default function DashboardPage() {
   }
 
   const [lowStockItems, setLowStockItems] = useState<any[]>([])
+  const [maintenanceDue, setMaintenanceDue] = useState<any[]>([])
+  const [alarmAlerts, setAlarmAlerts] = useState<any[]>([])
+  const ALARM_THRESHOLD = 10 // 월 알람 임계값
 
   async function fetchData() {
     setLoading(true)
+    const monthStart = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`
     const [eq, al, mn, sc, mat] = await Promise.all([
       supabase.from('equipment').select('*'),
-      supabase.from('alarm').select('punch_alarm, weld_alarm, date').gte('date', `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`),
-      supabase.from('maintenance').select('id'),
+      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date').gte('date', monthStart),
+      supabase.from('maintenance').select('equipment_no, date'),
       supabase.from('scratch').select('id'),
       supabase.from('materials').select('*'),
     ])
@@ -289,9 +293,55 @@ export default function DashboardPage() {
     const byType: any = {}
     eqData.forEach((e:any) => { byType[e.type]=(byType[e.type]||0)+1 })
     setEquipByType(byType)
-    // 자재 부족 항목 추출
+    // 자재 부족
     const lowStock = (mat.data||[]).filter((r:any) => (r.min_quantity||0) > 0 && r.quantity <= r.min_quantity)
     setLowStockItems(lowStock)
+
+    // 정비 주기 분석: 마지막 정비일 + 주기 = 다음 예정일
+    const maintByEq: Record<number, string> = {}
+    ;(mn.data||[]).forEach((m: any) => {
+      if (!maintByEq[m.equipment_no] || m.date > maintByEq[m.equipment_no]) {
+        maintByEq[m.equipment_no] = m.date
+      }
+    })
+    const dueList: any[] = []
+    eqData.forEach((eq: any) => {
+      const cycle = eq.maintenance_cycle_days || 30
+      const lastMaint = maintByEq[eq.no]
+      if (!lastMaint) return // 정비 이력 없으면 스킵
+      const lastDate = new Date(lastMaint)
+      const nextDate = new Date(lastDate)
+      nextDate.setDate(nextDate.getDate() + cycle)
+      const daysLeft = Math.floor((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysLeft <= 7) { // 7일 이내 또는 지난 것
+        dueList.push({
+          equipment_no: eq.no,
+          equipment_name: eq.name,
+          last_maintenance: lastMaint,
+          next_due: nextDate.toISOString().slice(0, 10),
+          days_left: daysLeft,
+          cycle,
+        })
+      }
+    })
+    dueList.sort((a, b) => a.days_left - b.days_left)
+    setMaintenanceDue(dueList)
+
+    // 알람 임계값: 설비별 월간 알람 합계
+    const alarmByEq: Record<number, number> = {}
+    ;(al.data||[]).forEach((a: any) => {
+      const total = (a.punch_alarm||0) + (a.weld_alarm||0)
+      alarmByEq[a.equipment_no] = (alarmByEq[a.equipment_no]||0) + total
+    })
+    const alerts = Object.entries(alarmByEq)
+      .filter(([_, count]) => (count as number) >= ALARM_THRESHOLD)
+      .map(([eqNo, count]) => {
+        const eq = eqData.find((e:any) => e.no === Number(eqNo))
+        return { equipment_no: Number(eqNo), equipment_name: eq?.name || '', count: count as number }
+      })
+      .sort((a, b) => b.count - a.count)
+    setAlarmAlerts(alerts)
+
     setLoading(false)
   }
 
@@ -711,6 +761,40 @@ export default function DashboardPage() {
                 </div>
               </div>
               <Favorites />
+              {alarmAlerts.length > 0 && (
+                <div className="card" style={{ padding: 14, background: 'var(--accent-amber-dim)', border: '1px solid var(--accent-amber)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-amber)' }}>📊 알람 임계 초과</div>
+                    <span style={{ fontSize: 10, color: 'var(--accent-amber)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>{ALARM_THRESHOLD}건↑ : {alarmAlerts.length}대</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                    {alarmAlerts.slice(0, 8).map((a: any) => (
+                      <div key={a.equipment_no} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                        <span>#{String(a.equipment_no).padStart(2,'0')} · {a.equipment_name}</span>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-amber)', fontWeight: 700 }}>{a.count}건</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {maintenanceDue.length > 0 && (
+                <div className="card" style={{ padding: 14, background: 'var(--accent-blue-dim)', border: '1px solid var(--accent-blue)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>🔧 정비 예정 알림</div>
+                    <span style={{ fontSize: 10, color: 'var(--accent-blue)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>7일 이내 {maintenanceDue.length}건</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {maintenanceDue.slice(0, 8).map((m: any) => (
+                      <div key={m.equipment_no} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                        <span>#{String(m.equipment_no).padStart(2,'0')} · {m.equipment_name}</span>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: m.days_left < 0 ? 'var(--accent-red)' : 'var(--accent-blue)', fontWeight: 700 }}>
+                          {m.days_left < 0 ? `${Math.abs(m.days_left)}일 경과` : m.days_left === 0 ? '오늘' : `D-${m.days_left}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {lowStockItems.length > 0 && (
                 <div className="card" style={{ padding: 14, background: 'var(--accent-red-dim)', border: '1px solid var(--accent-red)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
