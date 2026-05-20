@@ -55,7 +55,8 @@ export default function CommandPalette() {
     { id: 'staff', title: 'HR Info', desc: '인사정보', icon: '👤', category: '페이지', href: '/staff', keywords: ['인사', '직원', 'hr', 'staff'] },
     { id: 'memo', title: 'Memo', desc: '메모', icon: '📝', category: '페이지', href: '/memo', keywords: ['메모', '노트'] },
     { id: 'analysis', title: 'Analysis', desc: '데이터 분석', icon: '📈', category: '페이지', href: '/analysis', keywords: ['분석', '차트', 'analysis'] },
-    { id: 'manual', title: 'Manual', desc: '업무 매뉴얼', icon: '📖', category: '페이지', href: '/manual', keywords: ['매뉴얼', '메뉴얼', '가이드', 'manual'] },
+    { id: 'reports', title: 'Reports', desc: '주간/월간 보고서 + 히트맵', icon: '📑', category: '페이지', href: '/reports', keywords: ['보고서', '리포트', '히트맵', 'report'] },
+    { id: 'manual', title: 'Manual', desc: '업무 매뉴얼', icon: '📖', category: '페이지', href: '/manual', keywords: ['매뉴얼', '메뉴얼', '가이드', '업무', '절차', 'manual', 'maual'] },
     { id: 'backup', title: 'Backup', desc: '백업/복원', icon: '💾', category: '페이지', href: '/backup', keywords: ['백업', 'backup'] },
     { id: 'security', title: 'Security', desc: '보안 설정', icon: '🛡️', category: '페이지', href: '/security', keywords: ['보안', '비밀번호', 'security'] },
     // 빠른 액션
