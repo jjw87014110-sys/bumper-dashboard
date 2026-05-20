@@ -18,7 +18,7 @@ export default function MaterialsPage() {
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
-  const [form, setForm] = useState<any>({ item_no: '', item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, note: '' })
+  const [form, setForm] = useState<any>({ item_no: '', item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, min_quantity: 0, note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
 
@@ -40,11 +40,11 @@ export default function MaterialsPage() {
   }
 
   const { showToast, ToastUI } = useToast()
-  function openAdd() { setEditItem(null); setForm({ item_no: (data.length + 1), item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, note: '' }); setModal(true) }
-  function openEdit(r: any) { setEditItem(r); setForm({ item_no: r.item_no, item_name: r.item_name, spec: r.spec||'', maker: r.maker||'', unit: r.unit, quantity: r.quantity, note: r.note||'' }); setModal(true) }
+  function openAdd() { setEditItem(null); setForm({ item_no: (data.length + 1), item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, min_quantity: 0, note: '' }); setModal(true) }
+  function openEdit(r: any) { setEditItem(r); setForm({ item_no: r.item_no, item_name: r.item_name, spec: r.spec||'', maker: r.maker||'', unit: r.unit, quantity: r.quantity, min_quantity: r.min_quantity||0, note: r.note||'' }); setModal(true) }
 
   async function handleSave() {
-    const payload = { equipment_no: selected.no, item_no: Number(form.item_no), item_name: form.item_name, spec: form.spec, maker: form.maker, unit: form.unit, quantity: Number(form.quantity), note: form.note }
+    const payload = { equipment_no: selected.no, item_no: Number(form.item_no), item_name: form.item_name, spec: form.spec, maker: form.maker, unit: form.unit, quantity: Number(form.quantity), min_quantity: Number(form.min_quantity||0), note: form.note }
     if (editItem) {
       const { error } = await supabase.from('materials').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editItem.id)
       if (error) { showToast('수정 실패', 'error'); return }
@@ -128,15 +128,20 @@ export default function MaterialsPage() {
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>데이터 없음</div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
-                      <tbody>{data.map(r => (
-                        <tr key={r.id}>
+                      <thead><tr>{['No','품목명','규격','MAKER','단위','수량','최소','상태','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
+                      <tbody>{data.map(r => {
+                        const minQ = r.min_quantity || 0
+                        const isLow = minQ > 0 && r.quantity <= minQ
+                        return (
+                        <tr key={r.id} style={isLow ? { background: 'var(--accent-red-dim)' } : {}}>
                           <td className="tbl-td">{r.item_no}</td>
                           <td className="tbl-td">{r.item_name}</td>
                           <td className="tbl-td">{r.spec||'-'}</td>
                           <td className="tbl-td">{r.maker||'-'}</td>
                           <td className="tbl-td">{r.unit}</td>
-                          <td className="tbl-td"><span className="badge badge-teal">{r.quantity}</span></td>
+                          <td className="tbl-td"><span className={`badge ${isLow ? 'badge-red' : 'badge-teal'}`}>{r.quantity}</span></td>
+                          <td className="tbl-td" style={{ color: 'var(--text-muted)' }}>{minQ || '-'}</td>
+                          <td className="tbl-td">{isLow ? <span className="badge badge-red">⚠ 부족</span> : <span className="badge badge-green">정상</span>}</td>
                           <td className="tbl-td">{r.note||'-'}</td>
                           <td className="tbl-td">
                             <div style={{ display: 'flex', gap: 4 }}>
@@ -145,7 +150,7 @@ export default function MaterialsPage() {
                             </div>
                           </td>
                         </tr>
-                      ))}</tbody>
+                      )})}</tbody>
                     </table>
                   )}
                 </div>
@@ -186,6 +191,10 @@ export default function MaterialsPage() {
               <div className="form-group">
                 <label className="form-label">수량</label>
                 <input className="form-input" type="number" min="0" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">최소 재고 (0=알림 없음)</label>
+                <input className="form-input" type="number" min="0" value={form.min_quantity} onChange={e => setForm({...form, min_quantity: e.target.value})} placeholder="이 수량 이하 시 부족 알림" />
               </div>
               <div className="form-group">
                 <label className="form-label">비고</label>
