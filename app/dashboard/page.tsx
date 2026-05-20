@@ -268,13 +268,16 @@ export default function DashboardPage() {
     // 일정 추가는 상단 버튼으로만 → 날짜 클릭 시 TO DO만 변경
   }
 
+  const [lowStockItems, setLowStockItems] = useState<any[]>([])
+
   async function fetchData() {
     setLoading(true)
-    const [eq, al, mn, sc] = await Promise.all([
+    const [eq, al, mn, sc, mat] = await Promise.all([
       supabase.from('equipment').select('*'),
       supabase.from('alarm').select('punch_alarm, weld_alarm, date').gte('date', `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`),
       supabase.from('maintenance').select('id'),
       supabase.from('scratch').select('id'),
+      supabase.from('materials').select('*'),
     ])
     const eqData = eq.data || []
     setStats({
@@ -286,6 +289,9 @@ export default function DashboardPage() {
     const byType: any = {}
     eqData.forEach((e:any) => { byType[e.type]=(byType[e.type]||0)+1 })
     setEquipByType(byType)
+    // 자재 부족 항목 추출
+    const lowStock = (mat.data||[]).filter((r:any) => (r.min_quantity||0) > 0 && r.quantity <= r.min_quantity)
+    setLowStockItems(lowStock)
     setLoading(false)
   }
 
@@ -705,6 +711,25 @@ export default function DashboardPage() {
                 </div>
               </div>
               <Favorites />
+              {lowStockItems.length > 0 && (
+                <div className="card" style={{ padding: 14, background: 'var(--accent-red-dim)', border: '1px solid var(--accent-red)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-red)' }}>⚠ 자재 부족 알림</div>
+                    <span style={{ fontSize: 10, color: 'var(--accent-red)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>{lowStockItems.length}건</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {lowStockItems.slice(0, 8).map((m: any) => (
+                      <div key={m.id} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                        <span>#{String(m.equipment_no).padStart(2,'0')} · {m.item_name}</span>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-red)', fontWeight: 700 }}>{m.quantity}/{m.min_quantity}</span>
+                      </div>
+                    ))}
+                    {lowStockItems.length > 8 && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>외 {lowStockItems.length - 8}건</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 달력 */}
