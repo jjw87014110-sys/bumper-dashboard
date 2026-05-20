@@ -59,15 +59,13 @@ export const EQUIPMENT_HOLDER_STRUCTURE: Record<number, EquipmentStructure> = {
   14: {
     name: 'NQ5 PE RR LWR_X-LINE_UPT',
     groups: [
-      { category: '홀더(설비)', holders: ['1', '2', '3', '4'] },
-      { category: "BRK'T", holders: ['LH', 'RH'] },
+      { category: '홀더(설비)', holders: ['1', '2', '3', '4', '5', '6'] },
     ],
   },
   15: {
     name: 'NQ5 PE RR LWR_X-LINE_LPT',
     groups: [
-      { category: '홀더(설비)', holders: ['1', '2', '3', '4'] },
-      { category: "BRK'T", holders: ['LH', 'RH'] },
+      { category: '홀더(설비)', holders: ['1', '2', '3', '4', '5', '6'] },
     ],
   },
   23: {
