@@ -85,7 +85,8 @@ export const EQUIPMENT_HOLDER_STRUCTURE: Record<number, EquipmentStructure> = {
   25: {
     name: "NQ5 PE FRT BPR H/L BRK'T WELDING M/C",
     groups: [
-      { category: '브라켓', holders: ['1', '4', '7', '8', '3', '6', '2', '5', '9'] },
+      { category: 'LH', holders: ['1', '4', '7', '8', '3', '6', '2', '5', '9'] },
+      { category: 'RH', holders: ['1', '4', '7', '8', '3', '6', '2', '5', '9'] },
     ],
   },
   29: {
