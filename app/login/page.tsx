@@ -49,6 +49,30 @@ export default function LoginPage() {
     checkIP()
   }, [])
 
+  // PIN 단계에서 키보드 입력 지원
+  useEffect(() => {
+    if (step !== 'pin') return
+    function handleKey(e: KeyboardEvent) {
+      // 숫자 키 (0-9) - 메인 키보드 + 숫자 키패드 모두 지원
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault()
+        setPin(prev => prev.length < 4 ? prev + e.key : prev)
+      }
+      // 백스페이스
+      else if (e.key === 'Backspace') {
+        e.preventDefault()
+        setPin(prev => prev.slice(0, -1))
+      }
+      // Delete - 전체 지우기
+      else if (e.key === 'Delete') {
+        e.preventDefault()
+        setPin('')
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [step])
+
   function handleExternalPw(e: React.FormEvent) {
     e.preventDefault()
     if (externalPw === EXTERNAL_PW) {
@@ -186,6 +210,7 @@ export default function LoginPage() {
               <div style={{ textAlign:'center', marginBottom:24 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:'var(--text-secondary)', marginBottom:8 }}>🔑 2단계 — PIN 인증</div>
                 <div style={{ fontSize:11, color:'var(--text-muted)' }}>4자리 보안 PIN을 입력해주세요</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:4 }}>💡 키보드 숫자키 또는 아래 버튼 사용</div>
               </div>
               <div style={{ display:'flex', justifyContent:'center', gap:12, marginBottom:24 }}>
                 {[0,1,2,3].map(i => (
