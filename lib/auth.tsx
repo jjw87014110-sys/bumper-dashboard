@@ -2,12 +2,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { hashPassword, verifyPassword, isHashed } from '@/lib/passwordHash'
 
 const SESSION_KEY = 'bumper_auth'
 const PIN_KEY = 'bumper_pin'
 const SESSION_EXPIRE_KEY = 'bumper_expire'
 const SESSION_DURATION = 8 * 60 * 60 * 1000 // 8시간 (근무시간)
 const ROLE_KEY = 'bumper_role'
+const LAST_ACTIVITY_KEY = 'bumper_last_activity'
+const INACTIVITY_LIMIT = 30 * 60 * 1000 // 30분 비활동 시 자동 로그아웃
 
 interface AuthCtx {
   isLoggedIn: boolean
@@ -40,13 +43,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    // 세션 만료 확인
+    // 세션 만료 확인 (8시간)
     const expire = localStorage.getItem(SESSION_EXPIRE_KEY)
     if (expire && Date.now() > Number(expire)) {
-      // 세션 만료 → 강제 로그아웃
       localStorage.removeItem(SESSION_KEY)
       localStorage.removeItem(PIN_KEY)
       localStorage.removeItem(SESSION_EXPIRE_KEY)
+      localStorage.removeItem(LAST_ACTIVITY_KEY)
+      localStorage.removeItem(ROLE_KEY)
+      localStorage.removeItem('bumper_name')
+      return
+    }
+    // 비활동 시간 확인 (30분)
+    const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY)
+    if (lastActivity && Date.now() - Number(lastActivity) > INACTIVITY_LIMIT) {
+      localStorage.removeItem(SESSION_KEY)
+      localStorage.removeItem(PIN_KEY)
+      localStorage.removeItem(SESSION_EXPIRE_KEY)
+      localStorage.removeItem(LAST_ACTIVITY_KEY)
       localStorage.removeItem(ROLE_KEY)
       localStorage.removeItem('bumper_name')
       return
@@ -61,13 +75,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (n) setUserName(n)
   }, [])
 
+  // 사용자 활동 추적 (클릭/키보드/스크롤 시 마지막 활동 시간 갱신)
+  useEffect(() => {
+    if (!isPinVerified) return
+    const updateActivity = () => {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    }
+    const checkInactivity = () => {
+      const last = localStorage.getItem(LAST_ACTIVITY_KEY)
+      if (last && Date.now() - Number(last) > INACTIVITY_LIMIT) {
+        // 30분 비활동 → 자동 로그아웃
+        localStorage.removeItem(SESSION_KEY)
+        localStorage.removeItem(PIN_KEY)
+        localStorage.removeItem(SESSION_EXPIRE_KEY)
+        localStorage.removeItem(LAST_ACTIVITY_KEY)
+        localStorage.removeItem(ROLE_KEY)
+        localStorage.removeItem('bumper_name')
+        setIsLoggedIn(false)
+        setIsPinVerified(false)
+        setUserRole(null)
+        setUserName(null)
+        alert('30분 동안 활동이 없어 자동 로그아웃되었습니다.')
+        router.push('/login')
+      }
+    }
+    // 활동 감지 이벤트
+    const events: (keyof WindowEventMap)[] = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach(e => window.addEventListener(e, updateActivity))
+    // 1분마다 비활동 체크
+    const interval = setInterval(checkInactivity, 60 * 1000)
+    return () => {
+      events.forEach(e => window.removeEventListener(e, updateActivity))
+      clearInterval(interval)
+    }
+  }, [isPinVerified, router])
+
   const login = async (id: string, pw: string) => {
-    // DB에서 사용자 조회 (users 테이블)
+    // DB에서 사용자 조회 (user_id로만, 비밀번호는 클라이언트에서 검증)
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('user_id', id)
-      .eq('password', pw)
       .eq('is_active', true)
       .single()
 
@@ -78,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (id === envId && pw === envPw) {
         localStorage.setItem(SESSION_KEY, 'ok')
         localStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
+        localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
         localStorage.setItem(ROLE_KEY, 'admin')
         localStorage.setItem('bumper_name', '관리자')
         setIsLoggedIn(true)
@@ -88,8 +137,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     }
 
+    // 비밀번호 검증 (해시 또는 평문 모두 지원)
+    const isValid = await verifyPassword(pw, data.password)
+    if (!isValid) return false
+
+    // 자동 마이그레이션: 평문이면 해시로 업데이트
+    if (!isHashed(data.password)) {
+      try {
+        const hashedPw = await hashPassword(pw)
+        await supabase.from('users').update({ password: hashedPw }).eq('id', data.id)
+      } catch {} // 실패해도 로그인은 진행
+    }
+
     localStorage.setItem(SESSION_KEY, 'ok')
     localStorage.setItem(SESSION_EXPIRE_KEY, String(Date.now() + SESSION_DURATION))
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
     localStorage.setItem(ROLE_KEY, data.role || 'user')
     localStorage.setItem('bumper_name', data.name || id)
     setIsLoggedIn(true)
@@ -120,9 +182,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const name = localStorage.getItem('bumper_name') || ''
     const { data } = await supabase.from('users').select('*').eq('name', name).single()
     if (!data) return { ok: false, msg: '사용자 정보를 찾을 수 없습니다' }
-    if (data.password !== oldPw) return { ok: false, msg: '현재 비밀번호가 올바르지 않습니다' }
+    const oldValid = await verifyPassword(oldPw, data.password)
+    if (!oldValid) return { ok: false, msg: '현재 비밀번호가 올바르지 않습니다' }
     if (newPw.length < 4) return { ok: false, msg: '새 비밀번호는 4자리 이상이어야 합니다' }
-    const { error } = await supabase.from('users').update({ password: newPw, updated_at: new Date().toISOString() }).eq('id', data.id)
+    // 새 비밀번호 해싱
+    const hashedPw = await hashPassword(newPw)
+    const { error } = await supabase.from('users').update({ password: hashedPw, updated_at: new Date().toISOString() }).eq('id', data.id)
     if (error) return { ok: false, msg: '변경 실패: ' + error.message }
     return { ok: true, msg: '비밀번호가 변경되었습니다' }
   }
@@ -142,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_KEY)
     localStorage.removeItem(PIN_KEY)
     localStorage.removeItem(SESSION_EXPIRE_KEY)
+    localStorage.removeItem(LAST_ACTIVITY_KEY)
     localStorage.removeItem(ROLE_KEY)
     localStorage.removeItem('bumper_name')
     setIsLoggedIn(false)
