@@ -13,6 +13,36 @@ interface ManualSection {
   tips?: string[]
 }
 
+// FAQ
+const FAQS = [
+  { q: '알람을 입력했는데 어떻게 수정하나요?', a: 'Alarm 페이지에서 해당 알람 행 클릭 → 수정 버튼 클릭 → 내용 변경 후 저장' },
+  { q: '캘린더에 일정을 추가했는데 다른 날짜로 옮기고 싶어요', a: 'Dashboard 캘린더에서 일정을 마우스로 잡고 원하는 날짜로 드래그하면 이동됩니다' },
+  { q: '실수로 데이터를 삭제했어요', a: 'Security 페이지 > 데이터 변경 이력에서 누가 언제 삭제했는지 확인 가능. 복구는 Backup 페이지에서 백업 파일로 복원 가능' },
+  { q: '비밀번호를 잊어버렸어요', a: '관리자에게 문의하세요. Security 페이지에서 관리자가 비밀번호 초기화 가능' },
+  { q: '핸드폰에서도 사용 가능한가요?', a: '네, 모바일 반응형으로 제작되어 휴대폰 브라우저에서 정상 작동합니다' },
+  { q: '자재 부족 알림이 왜 안 떠요?', a: 'Materials 페이지에서 각 자재에 "최소 재고" 값을 0보다 큰 숫자로 설정해야 알림이 작동합니다' },
+  { q: '정비 예정 알림은 어떻게 작동하나요?', a: 'Equipment에서 설정한 "정비 주기"와 Maintenance의 마지막 정비일을 비교하여 7일 이내 도래 시 자동 표시' },
+  { q: '데이터를 엑셀로 받을 수 있나요?', a: '각 페이지 상단에 CSV 내보내기 버튼이 있습니다. Reports 페이지에서도 다운로드 가능' },
+  { q: 'Ctrl+K가 뭐예요?', a: '어디서든 Ctrl+K를 누르면 빠른 검색창이 열립니다. 페이지명/기능명 입력으로 빠르게 이동' },
+]
+
+// 용어 사전
+const GLOSSARY = [
+  { term: '융착', def: '플라스틱을 열로 녹여 붙이는 공정. 융착 에너지/시간/압력 등의 파라미터로 제어' },
+  { term: '펀칭', def: '제품에 구멍을 뚫는 공정. 펀치 핀의 마모도가 불량률에 직결' },
+  { term: '아이마킹 (i-Marking)', def: '주요 볼트나 클램프 위치에 잉크로 표시. 풀림이나 이동 여부를 시각적으로 확인하기 위함' },
+  { term: '홀더 (Holder)', def: '제품을 고정하는 부품. LH(좌측), RH(우측)로 구분' },
+  { term: '클램프 (Clamp)', def: '제품을 단단히 고정하는 장치' },
+  { term: '스토퍼 (Stopper)', def: '제품의 위치를 멈추게 하는 장치' },
+  { term: '융착혼 (Welding Horn)', def: '초음파 융착에서 진동을 전달하는 금속 부품' },
+  { term: '에어압', def: '실린더 등을 작동시키는 공기 압력 (단위: bar 또는 kgf/cm²)' },
+  { term: '찍힘 (Scratch)', def: '제품 표면의 흠집. 설비에 의한 것과 작업자/취급에 의한 것 구분' },
+  { term: '미융착', def: '융착이 제대로 되지 않은 상태. 실제 분리 시도로 판정' },
+  { term: '미펀칭', def: '구멍이 제대로 뚫리지 않은 상태' },
+  { term: 'LH / RH', def: 'Left Hand(좌측) / Right Hand(우측)' },
+  { term: 'FRT / RR', def: 'Front(앞) / Rear(뒤)' },
+]
+
 const MANUALS: ManualSection[] = [
   {
     id: 'alarm',
@@ -139,6 +169,7 @@ const MANUALS: ManualSection[] = [
 export default function ManualPage() {
   useRequireAuth()
   const [activeId, setActiveId] = useState<string>('alarm')
+  const [tab, setTab] = useState<'manual' | 'faq' | 'glossary'>('manual')
 
   const active = MANUALS.find(m => m.id === activeId) || MANUALS[0]
 
@@ -151,9 +182,46 @@ export default function ManualPage() {
             <div style={{ fontSize: 17, fontWeight: 700 }}>Manual</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>후가공설비 관리 업무 표준 절차서</div>
           </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className={`btn btn-sm ${tab === 'manual' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('manual')}>📋 업무 매뉴얼</button>
+            <button className={`btn btn-sm ${tab === 'faq' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('faq')}>❓ FAQ</button>
+            <button className={`btn btn-sm ${tab === 'glossary' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('glossary')}>📚 용어사전</button>
+          </div>
         </div>
 
         <div className="content-area">
+          {tab === 'faq' ? (
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>자주 묻는 질문 (FAQ)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>총 {FAQS.length}건</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {FAQS.map((f, i) => (
+                  <details key={i} style={{ background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <summary style={{ padding: '12px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ color: 'var(--accent-blue)', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>Q{i+1}.</span>
+                      <span>{f.q}</span>
+                    </summary>
+                    <div style={{ padding: '12px 16px 16px 42px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, background: 'var(--bg-hover)', borderTop: '1px solid var(--border)' }}>
+                      {f.a}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          ) : tab === 'glossary' ? (
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>용어 사전</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>업무 관련 전문 용어 {GLOSSARY.length}개</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                {GLOSSARY.map((g, i) => (
+                  <div key={i} style={{ padding: '14px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, borderLeft: '3px solid var(--accent-blue)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 6 }}>{g.term}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{g.def}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20 }}>
 
             {/* 좌측 매뉴얼 목록 */}
@@ -354,6 +422,7 @@ export default function ManualPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
