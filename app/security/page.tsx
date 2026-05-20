@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
+import { evaluatePasswordStrength } from '@/lib/passwordHash'
 import Sidebar from '@/components/Sidebar'
 
 export default function SecurityPage() {
@@ -155,6 +156,21 @@ export default function SecurityPage() {
                 <div style={{ marginBottom: 12 }}>
                   <div className="form-label" style={{ marginBottom: 4 }}>새 비밀번호</div>
                   <input className="form-input" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} />
+                  {newPw && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
+                        {[0,1,2,3,4].map(i => {
+                          const s = evaluatePasswordStrength(newPw)
+                          return (
+                            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= s.score ? s.color : 'var(--bg-hover)' }} />
+                          )
+                        })}
+                      </div>
+                      <div style={{ fontSize: 10, color: evaluatePasswordStrength(newPw).color }}>
+                        강도: {evaluatePasswordStrength(newPw).label} · 권장: 8자 이상 + 영문/숫자/특수문자
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginBottom: 16 }}>
                   <div className="form-label" style={{ marginBottom: 4 }}>새 비밀번호 확인</div>
