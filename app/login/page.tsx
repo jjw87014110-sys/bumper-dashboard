@@ -68,10 +68,46 @@ export default function LoginPage() {
         e.preventDefault()
         setPin('')
       }
+      // Enter - PIN 검증
+      else if (e.key === 'Enter') {
+        e.preventDefault()
+        // pin이 4자리일 때만 검증 (이전 상태 참조)
+        setPin(currentPin => {
+          if (currentPin.length === 4 && !loading) {
+            verifyPinSubmit(currentPin)
+          }
+          return currentPin
+        })
+      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [step])
+  }, [step, loading])
+
+  // PIN 4자리 입력 완료 시 자동 검증
+  useEffect(() => {
+    if (step === 'pin' && pin.length === 4 && !loading) {
+      const timer = setTimeout(() => verifyPinSubmit(pin), 200)
+      return () => clearTimeout(timer)
+    }
+  }, [pin, step])
+
+  async function verifyPinSubmit(pinValue: string) {
+    if (attempts >= 5) { setError('시도 횟수 초과. 다시 로그인해주세요.'); return }
+    setLoading(true)
+    setError('')
+    await new Promise(r => setTimeout(r, 400))
+    const ok = await verifyPin(pinValue)
+    if (ok) {
+      router.push('/dashboard')
+    } else {
+      const n = attempts + 1
+      setAttempts(n)
+      setError(n >= 5 ? '5회 이상 실패. 처음부터 다시 로그인해주세요.' : `PIN이 올바르지 않습니다. (${n}/5)`)
+      setPin('')
+      setLoading(false)
+    }
+  }
 
   function handleExternalPw(e: React.FormEvent) {
     e.preventDefault()
@@ -148,20 +184,7 @@ export default function LoginPage() {
 
   const handlePin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (attempts >= 5) { setError('시도 횟수 초과. 다시 로그인해주세요.'); return }
-    setLoading(true)
-    setError('')
-    await new Promise(r => setTimeout(r, 400))
-    const ok = await verifyPin(pin)
-    if (ok) {
-      router.push('/dashboard')
-    } else {
-      const n = attempts + 1
-      setAttempts(n)
-      setError(n >= 5 ? '5회 이상 실패. 처음부터 다시 로그인해주세요.' : `PIN이 올바르지 않습니다. (${n}/5)`)
-      setPin('')
-      setLoading(false)
-    }
+    await verifyPinSubmit(pin)
   }
 
   const handlePinInput = (digit: string) => {
@@ -251,7 +274,7 @@ export default function LoginPage() {
               <div style={{ textAlign:'center', marginBottom:24 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:'var(--text-secondary)', marginBottom:8 }}>🔑 2단계 — PIN 인증</div>
                 <div style={{ fontSize:11, color:'var(--text-muted)' }}>4자리 보안 PIN을 입력해주세요</div>
-                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:4 }}>💡 키보드 숫자키 또는 아래 버튼 사용</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:4 }}>💡 키보드 숫자키로 입력 후 Enter (또는 4자리 자동 확인)</div>
               </div>
               <div style={{ display:'flex', justifyContent:'center', gap:12, marginBottom:24 }}>
                 {[0,1,2,3].map(i => (
