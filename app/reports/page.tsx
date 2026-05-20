@@ -5,7 +5,7 @@ import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
-type ReportPeriod = 'week' | 'month'
+type ReportPeriod = 'week' | 'month' | 'custom'
 
 function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -17,6 +17,11 @@ export default function ReportsPage() {
   const today = new Date()
   const [period, setPeriod] = useState<ReportPeriod>('week')
   const [reportDate, setReportDate] = useState(toLocalDate(today))
+  // 사용자 지정 기간
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+  const [customStart, setCustomStart] = useState(toLocalDate(sevenDaysAgo))
+  const [customEnd, setCustomEnd] = useState(toLocalDate(today))
   const [loading, setLoading] = useState(false)
   const [reportData, setReportData] = useState<any>(null)
 
@@ -48,13 +53,25 @@ export default function ReportsPage() {
 
   async function generateReport() {
     setLoading(true)
-    const endDate = new Date(reportDate)
-    const startDate = new Date(endDate)
-    if (period === 'week') startDate.setDate(startDate.getDate() - 6)
-    else startDate.setDate(1)
+    let startStr: string, endStr: string
 
-    const startStr = toLocalDate(startDate)
-    const endStr = toLocalDate(endDate)
+    if (period === 'custom') {
+      // 사용자 지정 기간
+      if (customStart > customEnd) {
+        showToast('시작일이 종료일보다 늦을 수 없습니다', 'error')
+        setLoading(false)
+        return
+      }
+      startStr = customStart
+      endStr = customEnd
+    } else {
+      const endDate = new Date(reportDate)
+      const startDate = new Date(endDate)
+      if (period === 'week') startDate.setDate(startDate.getDate() - 6)
+      else startDate.setDate(1)
+      startStr = toLocalDate(startDate)
+      endStr = toLocalDate(endDate)
+    }
 
     const [alarm, maint, scratch, equipment] = await Promise.all([
       supabase.from('alarm').select('*').gte('date', startStr).lte('date', endStr),
@@ -114,7 +131,8 @@ export default function ReportsPage() {
   function downloadReport() {
     if (!reportData) return
     const r = reportData
-    let csv = `${period === 'week' ? '주간' : '월간'} 보고서\n`
+    const periodLabel = period === 'week' ? '주간' : period === 'month' ? '월간' : '사용자 지정'
+    let csv = `${periodLabel} 보고서\n`
     csv += `기간: ${r.startDate} ~ ${r.endDate}\n\n`
     csv += `[요약]\n`
     csv += `총 알람,${r.summary.totalAlarms}\n`
@@ -134,7 +152,7 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `${period === 'week' ? 'weekly' : 'monthly'}_report_${r.endDate}.csv`)
+    link.setAttribute('download', `${period === 'week' ? 'weekly' : period === 'month' ? 'monthly' : 'custom'}_report_${r.endDate}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -270,8 +288,17 @@ export default function ReportsPage() {
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className={`btn btn-sm ${period === 'week' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPeriod('week')}>주간 (7일)</button>
                   <button className={`btn btn-sm ${period === 'month' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPeriod('month')}>월간</button>
+                  <button className={`btn btn-sm ${period === 'custom' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPeriod('custom')}>사용자 지정</button>
                 </div>
-                <input type="date" className="form-input" style={{ width: 140 }} value={reportDate} onChange={e => setReportDate(e.target.value)} />
+                {period === 'custom' ? (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input type="date" className="form-input" style={{ width: 140 }} value={customStart} onChange={e => setCustomStart(e.target.value)} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>~</span>
+                    <input type="date" className="form-input" style={{ width: 140 }} value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+                  </div>
+                ) : (
+                  <input type="date" className="form-input" style={{ width: 140 }} value={reportDate} onChange={e => setReportDate(e.target.value)} title={period === 'week' ? '기준일 (이전 7일)' : '기준 월의 어느 날짜든'} />
+                )}
                 <button className="btn btn-primary btn-sm" onClick={generateReport} disabled={loading}>{loading ? '생성 중...' : '보고서 생성'}</button>
                 {reportData && <button className="btn btn-ghost btn-sm" onClick={downloadReport}>📥 CSV</button>}
                 {reportData && <button className="btn btn-ghost btn-sm" onClick={() => window.print()}>🖨️ 인쇄</button>}
@@ -283,7 +310,7 @@ export default function ReportsPage() {
                 {/* 보고서 헤더 */}
                 <div style={{ padding: '16px 20px', background: 'var(--accent-blue-dim)', borderRadius: 8, marginBottom: 16, borderLeft: '4px solid var(--accent-blue)' }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {reportData.period === 'week' ? '주간' : '월간'} 보고서
+                    {reportData.period === 'week' ? '주간' : reportData.period === 'month' ? '월간' : '사용자 지정'} 보고서
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                     기간: {reportData.startDate} ~ {reportData.endDate}
