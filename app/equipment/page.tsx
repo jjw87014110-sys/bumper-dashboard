@@ -421,7 +421,7 @@ export default function EquipmentPage() {
   const [filter, setFilter] = useState({ rr: '전체', type: '전체', model: '전체' })
   const [modal, setModal] = useState(false)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
-  const [form, setForm] = useState<any>({ no: '', type: '복합기', rr_frt: 'RR', model: 'OV1', location: '', name: '', vendor: '' })
+  const [form, setForm] = useState<any>({ no: '', type: '복합기', rr_frt: 'RR', model: 'OV1', location: '', name: '', vendor: '', maintenance_cycle_days: 30 })
 
   useEffect(() => { fetchData() }, [])
 
@@ -436,13 +436,14 @@ export default function EquipmentPage() {
 
   function openAdd() {
     const maxNo = data.length > 0 ? Math.max(...data.map(d => d.no)) + 1 : 1
-    setForm({ no: maxNo, type: '복합기', rr_frt: 'RR', model: 'OV1', location: '조립1라인', name: '', vendor: '' })
+    setForm({ no: maxNo, type: '복합기', rr_frt: 'RR', model: 'OV1', location: '조립1라인', name: '', vendor: '', maintenance_cycle_days: 30 })
     setModal(true)
   }
 
   async function handleSave() {
     if (!form.no || !form.name) { showToast('설비번호와 설비명은 필수입니다', 'error'); return }
-    const { error } = await supabase.from('equipment').insert([{ ...form, no: Number(form.no) }])
+    const payload = { ...form, no: Number(form.no), maintenance_cycle_days: Number(form.maintenance_cycle_days||30) }
+    const { error } = await supabase.from('equipment').insert([payload])
     if (error) { showToast('등록 실패: ' + error.message, 'error'); return }
     showToast('설비가 등록되었습니다')
     setModal(false)
@@ -549,6 +550,10 @@ export default function EquipmentPage() {
               <div className="form-group">
                 <label className="form-label">업체</label>
                 <input className="form-input" type="text" placeholder="예: 부영ENG" value={form.vendor} onChange={e => setForm({...form, vendor: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">정비 주기 (일)</label>
+                <input className="form-input" type="number" min="1" placeholder="기본 30일" value={form.maintenance_cycle_days||30} onChange={e => setForm({...form, maintenance_cycle_days: e.target.value})} />
               </div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6 }}>
