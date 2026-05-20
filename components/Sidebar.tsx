@@ -6,22 +6,27 @@ import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 
 const navItems = [
+  // ── 홈 / 현황 ──
   { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { href: '/equipment', label: 'Equipment', icon: 'server' },
   { divider: true },
-  { href: '/alarm', label: 'Alarm', icon: 'bell' },
-  { href: '/scratch', label: 'Scratch', icon: 'alert' },
+  // ── 매일 업무 (07:30 → 08:00 → 16:00 시간 순) ──
   { href: '/imarking', label: 'i-Marking', icon: 'chart' },
-  { href: '/condition', label: 'Condition', icon: 'settings' },
+  { href: '/scratch', label: 'Scratch', icon: 'alert' },
+  { href: '/alarm', label: 'Alarm', icon: 'bell' },
   { divider: true },
+  // ── 이력 관리 (정비 → 자재 → 조건) ──
+  { href: '/condition', label: 'Condition', icon: 'settings' },
   { href: '/maintenance', label: 'Maintenance', icon: 'tool' },
   { href: '/materials', label: 'Materials', icon: 'box' },
   { divider: true },
-  { href: '/staff', label: 'HR Info', icon: 'user' },
+  // ── 정보 / 분석 ──
   { href: '/memo', label: 'Memo', icon: 'memo' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
-  { href: '/manual', label: 'Manual', icon: 'manual' },
+  { href: '/staff', label: 'HR Info', icon: 'user' },
   { divider: true },
+  // ── 참고 / 시스템 ──
+  { href: '/manual', label: 'Manual', icon: 'manual' },
   { href: '/backup', label: 'Backup', icon: 'box' },
   { href: '/security', label: 'Security', icon: 'shield' },
 ]
