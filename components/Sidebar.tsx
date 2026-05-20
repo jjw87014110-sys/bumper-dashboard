@@ -23,6 +23,7 @@ const navItems = [
   // ── 정보 / 분석 ──
   { href: '/memo', label: 'Memo', icon: 'memo' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
+  { href: '/reports', label: 'Reports', icon: 'report' },
   { href: '/staff', label: 'HR Info', icon: 'user' },
   { divider: true },
   // ── 참고 / 시스템 ──
@@ -46,6 +47,7 @@ function Icon({ name }: { name: string }) {
     case 'worklog': return <svg style={s} viewBox="0 0 15 15" {...p}><rect x="2" y="1" width="11" height="13" rx="1"/><line x1="4.5" y1="4.5" x2="10.5" y2="4.5"/><line x1="4.5" y1="7" x2="10.5" y2="7"/><line x1="4.5" y1="9.5" x2="7.5" y2="9.5"/><path d="M9 10.5l1 1 2-2"/></svg>
     case 'analysis': return <svg style={s} viewBox="0 0 15 15" {...p}><polyline points="1,12 4,7 7,9 10,4 14,6"/><line x1="1" y1="14" x2="14" y2="14"/></svg>
     case 'manual': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M3 1.5h7l3 3v9.5h-10z"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg>
+    case 'report': return <svg style={s} viewBox="0 0 15 15" {...p}><rect x="2" y="2" width="11" height="12" rx="1"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="11" y2="9"/><polyline points="5,12 7,11 9,13 11,10"/></svg>
     case 'memo': return <svg style={s} viewBox="0 0 15 15" {...p}><rect x="2" y="1" width="11" height="13" rx="1"/><line x1="4.5" y1="4.5" x2="10.5" y2="4.5"/><line x1="4.5" y1="7" x2="10.5" y2="7"/><line x1="4.5" y1="9.5" x2="8" y2="9.5"/></svg>
     case 'user': return <svg style={s} viewBox="0 0 15 15" {...p}><circle cx="7.5" cy="5" r="2.5"/><path d="M2 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg>
     case 'moon': return <svg style={s} viewBox="0 0 15 15" {...p}><path d="M12 9A6 6 0 116 3a4.5 4.5 0 006 6z"/></svg>
