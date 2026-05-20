@@ -87,9 +87,26 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // IP 차단 확인 (localStorage 기반)
+    const blockKey = `login_block_${clientIP}`
+    const attemptKey = `login_attempts_${clientIP}`
+    const blockUntil = Number(localStorage.getItem(blockKey) || 0)
+    if (blockUntil > Date.now()) {
+      const remainSec = Math.ceil((blockUntil - Date.now()) / 1000)
+      const min = Math.floor(remainSec / 60)
+      const sec = remainSec % 60
+      setError(`로그인 시도 차단됨. ${min}분 ${sec}초 후 다시 시도해주세요.`)
+      setLoading(false)
+      return
+    }
+
     await new Promise(r => setTimeout(r, 600))
     const ok = await login(id, pw)
     if (ok) {
+      // 성공 시 시도 횟수 초기화
+      localStorage.removeItem(attemptKey)
+      localStorage.removeItem(blockKey)
       try {
         await supabase.from('access_logs').insert([{
           ip_address: clientIP,
@@ -100,7 +117,31 @@ export default function LoginPage() {
       setStep('pin')
       setLoading(false)
     } else {
-      setError('아이디 또는 비밀번호가 올바르지 않습니다.')
+      // 실패 시 시도 횟수 증가
+      const attemptData = JSON.parse(localStorage.getItem(attemptKey) || '{"count":0,"firstAt":0}')
+      const now = Date.now()
+      // 10분 윈도우: 첫 시도 10분 지났으면 카운트 리셋
+      if (now - attemptData.firstAt > 10 * 60 * 1000) {
+        attemptData.count = 0
+        attemptData.firstAt = now
+      }
+      attemptData.count++
+      if (attemptData.count >= 5) {
+        // 5회 실패 → 10분 차단
+        localStorage.setItem(blockKey, String(now + 10 * 60 * 1000))
+        localStorage.removeItem(attemptKey)
+        try {
+          await supabase.from('access_logs').insert([{
+            ip_address: clientIP,
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+            status: 'blocked_brute_force',
+          }])
+        } catch {}
+        setError('로그인 5회 실패. 10분간 차단됩니다.')
+      } else {
+        localStorage.setItem(attemptKey, JSON.stringify(attemptData))
+        setError(`아이디 또는 비밀번호가 올바르지 않습니다. (${attemptData.count}/5)`)
+      }
       setLoading(false)
     }
   }
