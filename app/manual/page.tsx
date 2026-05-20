@@ -9,8 +9,16 @@ interface ManualSection {
   title: string
   category: string
   description: string
-  steps: { num: number; text: string; subSteps?: string[] }[]
+  steps?: { num: number; text: string; subSteps?: string[] }[]
   tips?: string[]
+  subSections?: {
+    title: string
+    icon: string
+    description: string
+    color: string
+    steps: { num: number; text: string; subSteps?: string[] }[]
+    tips?: string[]
+  }[]
 }
 
 // FAQ
@@ -70,46 +78,61 @@ const MANUALS: ManualSection[] = [
     tips: ['정기 점검 시간: 매일 08:00, 16:00'],
   },
   {
-    id: 'scratch',
+    id: 'inspection',
     icon: '🔍',
-    title: '스크라치',
-    category: 'Scratch Management',
-    description: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에서 나온 불량품 중 설비에 의한 스크라치를 판단하여 기록합니다.',
-    steps: [
+    title: '점검 (스크라치 + 아이마킹)',
+    category: 'Inspection',
+    description: '설비 점검 통합 관리. 스크라치와 아이마킹은 페이지 상단 탭으로 구분하여 사용합니다.',
+    subSections: [
       {
-        num: 1,
-        text: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에 참여하여 설비에 의한 스크라치 발생 여부를 점검합니다.',
+        title: '스크라치',
+        icon: '🔍',
+        color: 'var(--accent-amber)',
+        description: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에서 나온 불량품 중 설비에 의한 스크라치를 판단하여 기록합니다.',
+        steps: [
+          {
+            num: 1,
+            text: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에 참여하여 설비에 의한 스크라치 발생 여부를 점검합니다.',
+          },
+          {
+            num: 2,
+            text: 'Inspection 페이지 상단에서 [🔍 스크라치] 탭을 선택합니다.',
+          },
+          {
+            num: 3,
+            text: '설비에 의한 스크라치가 확인되면, 좌측에서 해당 설비 선택 후 [+ 찍힘 등록] 버튼을 클릭하여 등록합니다.',
+          },
+          {
+            num: 4,
+            text: '설비에 의한 스크라치가 없으면 별도 등록 없이 종료합니다.',
+          },
+        ],
+        tips: ['공정회의 참여 시간: 매일 07:30, 15:30'],
       },
       {
-        num: 2,
-        text: '설비에 의한 스크라치가 확인되면, 후가공설비 시스템 > 스크라치 목록에 추가합니다.',
+        title: '아이마킹',
+        icon: '📊',
+        color: 'var(--accent-teal)',
+        description: '매일 1일 1설비씩 담당하여 후가공설비 아이마킹을 실시합니다.',
+        steps: [
+          {
+            num: 1,
+            text: '오전 7시 30분 조례 후, 해당 일자의 담당 설비로 이동합니다.',
+          },
+          {
+            num: 2,
+            text: '클램프, 스토퍼, 융착혼 등 설비 관련 모든 볼트를 점검하여 아이마킹을 실시합니다.',
+          },
+          {
+            num: 3,
+            text: 'Inspection 페이지 상단에서 [📊 아이마킹] 탭을 선택하고, 해당 설비를 클릭 후 점검일과 비고를 입력하여 [+ 점검 등록] 버튼을 클릭합니다.',
+          },
+        ],
+        tips: [
+          '예외: 주말, 공휴일, 휴가, 함평 출근일 제외',
+          '점검 시작 시간: 매일 07:30 조례 후',
+        ],
       },
-      {
-        num: 3,
-        text: '설비에 의한 스크라치가 없으면 별도 등록 없이 종료합니다.',
-      },
-    ],
-    tips: ['공정회의 참여 시간: 매일 07:30, 15:30'],
-  },
-  {
-    id: 'imarking',
-    icon: '📊',
-    title: '아이마킹',
-    category: 'i-Marking Inspection',
-    description: '매일 1일 1설비씩 담당하여 후가공설비 아이마킹을 실시합니다.',
-    steps: [
-      {
-        num: 1,
-        text: '오전 7시 30분 조례 후, 해당 일자의 담당 설비로 이동합니다.',
-      },
-      {
-        num: 2,
-        text: '클램프, 스토퍼, 융착혼 등 설비 관련 모든 볼트를 점검하여 아이마킹을 실시합니다.',
-      },
-    ],
-    tips: [
-      '예외: 주말, 공휴일, 휴가, 함평 출근일 제외',
-      '점검 시작 시간: 매일 07:30 조례 후',
     ],
   },
   {
@@ -297,6 +320,82 @@ export default function ManualPage() {
                 </div>
               </div>
 
+              {/* 서브 섹션이 있는 경우 (통합 매뉴얼) */}
+              {active.subSections ? (
+                active.subSections.map((sub, sIdx) => (
+                  <div key={sIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* 서브 섹션 헤더 */}
+                    <div className="card" style={{
+                      padding: '14px 20px',
+                      borderLeft: `4px solid ${sub.color}`,
+                      background: `${sub.color}1A`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <span style={{ fontSize: 18 }}>{sub.icon}</span>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: sub.color }}>{sub.title}</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                        {sub.description}
+                      </div>
+                    </div>
+
+                    {/* 서브 섹션 절차 */}
+                    <div className="card" style={{ padding: '20px 24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+                        <div style={{ width: 4, height: 18, background: sub.color, borderRadius: 2 }} />
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>업무 방법</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {sub.steps.map(step => (
+                          <div key={step.num} style={{ display: 'flex', gap: 14 }}>
+                            <div style={{
+                              flexShrink: 0,
+                              width: 26, height: 26,
+                              borderRadius: '50%',
+                              background: sub.color,
+                              color: 'white',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 11, fontWeight: 700,
+                              fontFamily: 'JetBrains Mono, monospace',
+                            }}>
+                              {step.num}
+                            </div>
+                            <div style={{ flex: 1, paddingTop: 3, fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                              {step.text}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 서브 섹션 핵심 포인트 */}
+                    {sub.tips && sub.tips.length > 0 && (
+                      <div className="card" style={{
+                        padding: '14px 20px',
+                        background: 'var(--accent-amber-dim)',
+                        border: '1px solid var(--accent-amber)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 14 }}>💡</span>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-amber)' }}>
+                            {sub.title} 핵심 포인트
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {sub.tips.map((tip, i) => (
+                            <div key={i} style={{ fontSize: 11.5, color: 'var(--text-primary)', lineHeight: 1.7, display: 'flex', gap: 8 }}>
+                              <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>·</span>
+                              <span>{tip}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                /* 일반 매뉴얼 */
+                <>
               {/* 절차 카드 */}
               <div className="card" style={{ padding: '20px 24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
@@ -305,7 +404,7 @@ export default function ManualPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {active.steps.map(step => (
+                  {active.steps && active.steps.map(step => (
                     <div key={step.num} style={{ display: 'flex', gap: 14 }}>
                       {/* 단계 번호 */}
                       <div style={{
@@ -394,6 +493,8 @@ export default function ManualPage() {
                     ))}
                   </div>
                 </div>
+              )}
+                </>
               )}
 
               {/* 하단 네비게이션 */}
