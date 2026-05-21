@@ -551,10 +551,10 @@ export default function DashboardPage() {
   const selectedImarking = getImarkingSchedule(selectedDateObj)
 
   const kpiCards = [
-    { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)' },
-    { label: '이번 달 알람', value: stats.alarm, unit: '건', color: 'var(--accent-amber)' },
-    { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)' },
-    { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)' },
+    { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)', icon: '🏭' },
+    { label: '이번 달 알람', value: stats.alarm, unit: '건', color: 'var(--accent-amber)', icon: '🔔', warn: stats.alarm >= 20 },
+    { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)', icon: '🔧' },
+    { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)', icon: '🔍' },
   ]
 
   return (
@@ -678,11 +678,20 @@ export default function DashboardPage() {
 
         <div className="content-area">
           <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
-            {kpiCards.map(k => (
-              <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color }}>
-                <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8 }}>{k.label}</div>
-                <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:28, fontWeight:700, color:k.color }}>{loading?'-':k.value}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{k.unit}</div>
+            {kpiCards.map((k: any) => (
+              <div key={k.label} className="card kpi-card" style={{ padding:'14px 16px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{k.label}</div>
+                  <span style={{ fontSize: 18, opacity: 0.7 }}>{k.icon}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontFamily:'JetBrains Mono, monospace', fontSize:26, fontWeight:700, color:k.color }}>{loading?'-':k.value}</span>
+                  <span style={{ fontSize:11, color:'var(--text-muted)' }}>{k.unit}</span>
+                  {k.warn && <span style={{ fontSize: 10, color: 'var(--accent-red)', marginLeft: 'auto' }}>⚠ 주의</span>}
+                </div>
+                <div style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: '100%', background: 'var(--bg-hover)' }}>
+                  <div style={{ height: '100%', width: '100%', background: k.color, opacity: 0.6 }} />
+                </div>
               </div>
             ))}
           </div>
@@ -812,6 +821,17 @@ export default function DashboardPage() {
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>외 {lowStockItems.length - 8}건</div>
                     )}
                   </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%', marginTop: 8, fontSize: 11 }}
+                    onClick={() => {
+                      const memo = `[자재 부족 발주 요청]\n${lowStockItems.map((m: any) =>
+                        `- #${String(m.equipment_no).padStart(2,'0')} ${m.item_name}${m.spec ? ` (${m.spec})` : ''}${m.maker ? ` · ${m.maker}` : ''} : 현재 ${m.quantity}개 / 최소 ${m.min_quantity}개 → 부족 ${m.min_quantity - m.quantity}개`
+                      ).join('\n')}\n\n총 ${lowStockItems.length}건`
+                      navigator.clipboard.writeText(memo)
+                      alert('발주 메모가 클립보드에 복사되었습니다')
+                    }}
+                  >📋 발주 메모 복사</button>
                 </div>
               )}
             </div>
