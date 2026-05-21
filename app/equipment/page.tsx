@@ -10,7 +10,7 @@ import {
   parseHolderKey,
 } from '@/lib/holderStructure'
 
-const TABS_ALL = ['알람', '찍힘', '아이마킹', '조건표', '정비이력', '자재']
+const TABS_ALL = ['알람', '찍힘', '아이마킹', '정비이력', '자재']
 const TABS_JIG = ['정비이력']
 
 async function loadTab(tab: string, no: number) {
@@ -557,7 +557,7 @@ export default function EquipmentPage() {
               </div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6 }}>
-              💡 복합기·융착기·펀칭기로 추가하면 알람, 찍힘, 조건표 등 모든 관리 페이지에 자동으로 반영됩니다.
+              💡 복합기·융착기·펀칭기로 추가하면 알람, 찍힘, 정비이력 등 모든 관리 페이지에 자동으로 반영됩니다.
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>취소</button>
