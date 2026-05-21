@@ -270,6 +270,44 @@ export default function InspectionPage() {
                     </div>
                   </div>
 
+                  {/* 통계 KPI 카드 */}
+                  {data.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+                      {(() => {
+                        if (tab === 'scratch') {
+                          const total = data.length
+                          const thisMonth = data.filter((r:any) => r.date >= new Date().toISOString().slice(0,7)).length
+                          const jigIssue = data.filter((r:any) => r.jig_status === '이상').length
+                          const eqIssue = data.filter((r:any) => r.equipment_issue !== '해당없음').length
+                          return [
+                            { label: '전체 기록', value: total, color: 'var(--accent-amber)' },
+                            { label: '이번 달', value: thisMonth, color: 'var(--accent-blue)' },
+                            { label: '지그 이상', value: jigIssue, color: 'var(--accent-red)' },
+                            { label: '설비 이상', value: eqIssue, color: 'var(--accent-purple)' },
+                          ]
+                        } else {
+                          const total = data.length
+                          const thisMonth = data.filter((r:any) => r.change_date >= new Date().toISOString().slice(0,7)).length
+                          // 최근 점검일 계산
+                          const dates = data.map((r:any) => r.change_date).sort().reverse()
+                          const lastDate = dates[0] || ''
+                          const daysSince = lastDate ? Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (86400000)) : 0
+                          return [
+                            { label: '전체 점검', value: total, color: 'var(--accent-teal)' },
+                            { label: '이번 달', value: thisMonth, color: 'var(--accent-blue)' },
+                            { label: '최근 점검', value: lastDate || '-', color: 'var(--accent-green)' },
+                            { label: '경과일', value: lastDate ? `${daysSince}일` : '-', color: daysSince > 30 ? 'var(--accent-red)' : 'var(--accent-amber)' },
+                          ]
+                        }
+                      })().map((kpi: any, i) => (
+                        <div key={i} className="card" style={{ padding: '10px 12px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>{kpi.label}</div>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: kpi.color, fontFamily: typeof kpi.value === 'string' && kpi.value.includes('-') ? 'JetBrains Mono, monospace' : 'inherit' }}>{kpi.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* ───────── 스크라치 탭 ───────── */}
                   {tab === 'scratch' && (
                     <>
