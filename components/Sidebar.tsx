@@ -15,7 +15,6 @@ const navItems = [
   { href: '/alarm', label: 'Alarm', icon: 'bell' },
   { divider: true },
   // ── 이력 관리 (정비 → 자재 → 조건) ──
-  { href: '/condition', label: 'Condition', icon: 'settings' },
   { href: '/maintenance', label: 'Maintenance', icon: 'tool' },
   { href: '/materials', label: 'Materials', icon: 'box' },
   { divider: true },
