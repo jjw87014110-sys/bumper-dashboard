@@ -47,7 +47,6 @@ export default function CommandPalette() {
     { id: 'dashboard', title: 'Dashboard', desc: '메인 대시보드', icon: '🏠', category: '페이지', href: '/dashboard', keywords: ['홈', '메인', '대시보드'] },
     { id: 'equipment', title: 'Equipment', desc: '설비 관리', icon: '🏭', category: '페이지', href: '/equipment', keywords: ['설비', '장비'] },
     { id: 'alarm', title: 'Alarm', desc: '알람 관리', icon: '🔔', category: '페이지', href: '/alarm', keywords: ['알람', '불량', '경고'] },
-    { id: 'condition', title: 'Condition', desc: '조건표', icon: '⚙️', category: '페이지', href: '/condition', keywords: ['조건', '설정', '파라미터'] },
     { id: 'inspection', title: 'Inspection', desc: '스크라치 + 아이마킹 통합', icon: '🔍', category: '페이지', href: '/inspection', keywords: ['스크라치', '찍힘', '아이마킹', 'imarking', '점검', 'inspection', '검사'] },
     { id: 'maintenance', title: 'Maintenance', desc: '정비 이력', icon: '🔧', category: '페이지', href: '/maintenance', keywords: ['정비', '수리', 'maintenance'] },
     { id: 'materials', title: 'Materials', desc: '자재 관리', icon: '📦', category: '페이지', href: '/materials', keywords: ['자재', '부품', 'materials'] },
