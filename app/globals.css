@@ -159,6 +159,10 @@ body {
   text-align: left; position: sticky;
   top: 0; z-index: 2;
 }
+/* 테이블 행 hover 강조 */
+tbody tr { transition: background 0.12s; }
+tbody tr:hover .tbl-td { background: var(--bg-hover); color: var(--text-primary); }
+tbody tr:hover { cursor: default; }
 
 /* ── Form ── */
 .form-group { display: flex; flex-direction: column; gap: 5px; }
