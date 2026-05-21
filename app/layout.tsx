@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth'
 import CommandPalette from '@/components/CommandPalette'
+import GlobalSearch from '@/components/GlobalSearch'
 import ShortcutHelp from '@/components/ShortcutHelp'
 import RealtimeIndicator from '@/components/RealtimeIndicator'
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           {children}
           <CommandPalette />
+          <GlobalSearch />
           <ShortcutHelp />
           <RealtimeIndicator />
         </AuthProvider>
