@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 
 const SHORTCUTS = [
-  { keys: ['Ctrl', 'K'], desc: '명령 팔레트 열기' },
+  { keys: ['Ctrl', 'K'], desc: '명령 팔레트 열기 (페이지 이동)' },
+  { keys: ['Ctrl', 'F'], desc: '통합 검색 (알람/메모/정비/자재)' },
   { keys: ['?'], desc: '이 도움말 보기' },
   { keys: ['ESC'], desc: '모달 닫기' },
   { keys: ['Ctrl', 'P'], desc: '현재 페이지 인쇄' },
