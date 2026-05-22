@@ -17,36 +17,36 @@ interface Staff {
 
 // 원형 게이지 컴포넌트
 function CircularGauge({ value, max, secondary, color }: { value: number; max: number; secondary?: number; color: string }) {
-  const radius = 56
+  const radius = 38
   const circ = 2 * Math.PI * radius
   const pct = Math.min(value / max, 1)
   const dash = circ * pct
   const secondaryAngle = secondary !== undefined ? (secondary / max) * 360 - 90 : null
 
   return (
-    <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
-      <svg width="130" height="130" viewBox="0 0 130 130">
-        <circle cx="65" cy="65" r={radius} fill="none" stroke="var(--bg-hover)" strokeWidth="10" />
+    <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r={radius} fill="none" stroke="var(--bg-hover)" strokeWidth="8" />
         <circle
-          cx="65" cy="65" r={radius}
-          fill="none" stroke={color} strokeWidth="10"
+          cx="45" cy="45" r={radius}
+          fill="none" stroke={color} strokeWidth="8"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
-          transform="rotate(-90 65 65)"
+          transform="rotate(-90 45 45)"
           style={{ transition: 'stroke-dasharray 0.5s ease' }}
         />
         {secondaryAngle !== null && (
           <circle
-            cx={65 + radius * Math.cos((secondaryAngle * Math.PI) / 180)}
-            cy={65 + radius * Math.sin((secondaryAngle * Math.PI) / 180)}
-            r="3.5"
+            cx={45 + radius * Math.cos((secondaryAngle * Math.PI) / 180)}
+            cy={45 + radius * Math.sin((secondaryAngle * Math.PI) / 180)}
+            r="2.5"
             fill="var(--accent-amber)"
           />
         )}
       </svg>
       <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-        <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>{value.toFixed(1)}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>/ {max}h</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1.1 }}>{value.toFixed(1)}</div>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>/ {max}h</div>
       </div>
     </div>
   )
@@ -96,6 +96,14 @@ export default function WorktimePage() {
       return { staff: s, records: recs, ...pred }
     })
   }, [staffList, weekRecords, allRecords, weekStart, weekEnd])
+
+  // 상태 카운트
+  const statusCounts = useMemo(() => {
+    const over = staffStats.filter(s => s.status === 'over').length
+    const warning = staffStats.filter(s => s.status === 'warning').length
+    const normal = staffStats.filter(s => s.status === 'normal').length
+    return { over, warning, normal }
+  }, [staffStats])
 
   function changeWeek(direction: -1 | 0 | 1) {
     setExpandedStaff(null)
@@ -209,18 +217,47 @@ export default function WorktimePage() {
         </div>
 
         <div className="content-area">
+          {/* 상단 요약 바 */}
+          <div className="card" style={{
+            padding: '12px 18px',
+            marginBottom: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            border: '0.5px solid var(--border)',
+            borderRadius: 10,
+            flexWrap: 'wrap',
+            gap: 8,
+          }}>
+            <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>이번 주 상태</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-red)' }}></span>
+                위험 <strong style={{ color: 'var(--accent-red)', fontSize: 13 }}>{statusCounts.over}명</strong>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-amber)' }}></span>
+                주의 <strong style={{ color: 'var(--accent-amber)', fontSize: 13 }}>{statusCounts.warning}명</strong>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)' }}></span>
+                정상 <strong style={{ color: 'var(--accent-green)', fontSize: 13 }}>{statusCounts.normal}명</strong>
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>총 {staffStats.length}명 보전반</span>
+          </div>
+
           {/* 주차 선택 */}
           <div className="card" style={{
-            padding: '14px 18px',
-            marginBottom: 18,
+            padding: '12px 16px',
+            marginBottom: 14,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 8,
-            border: '1.5px solid var(--border)',
+            border: '0.5px solid var(--border)',
             borderRadius: 10,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
@@ -241,7 +278,7 @@ export default function WorktimePage() {
           ) : (
             <>
               {/* 4명 원형 게이지 카드 */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 14 }}>
                 {staffStats.map(({ staff, currentTotal, daysWorked, daysRemaining, avgPerDay, predictedTotal, status }) => {
                   const info = getStatusInfo(status, currentTotal, predictedTotal)
                   const isExpanded = expandedStaff === staff.name
@@ -252,138 +289,103 @@ export default function WorktimePage() {
                       <div
                         className="card"
                         style={{
-                          padding: 20,
+                          padding: 14,
                           cursor: 'pointer',
-                          border: `1.5px solid ${isExpanded ? info.color : 'var(--border)'}`,
-                          borderLeft: `5px solid ${info.color}`,
+                          border: `0.5px solid ${isExpanded ? info.color : 'var(--border)'}`,
+                          borderLeft: `3px solid ${info.color}`,
                           borderRadius: 10,
-                          boxShadow: isExpanded ? `0 6px 20px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)` : '0 2px 8px rgba(0,0,0,0.04)',
-                          transition: 'all 0.2s ease',
-                          transform: isExpanded ? 'translateY(-1px)' : 'translateY(0)',
+                          transition: 'all 0.15s ease',
+                          background: isExpanded ? info.bg : 'var(--bg-card)',
                           position: 'relative',
                         }}
                         onClick={() => setExpandedStaff(isExpanded ? null : staff.name)}
                         onMouseEnter={(e) => {
                           if (!isExpanded) {
-                            (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
-                            ;(e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)`
+                            (e.currentTarget as HTMLElement).style.borderColor = info.color
+                            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isExpanded) {
-                            (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
-                            ;(e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'
+                            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
+                            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-card)'
                           }
                         }}
                       >
-                        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-                          {/* 좌측: 원형 게이지 */}
-                          <div style={{ paddingRight: 20, borderRight: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                            <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600 }}>
-                              현재 누계 / 한도
-                            </div>
-                          </div>
-
-                          {/* 우측 정보 */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                                  <div style={{ fontSize: 17, fontWeight: 700 }}>{staff.name}</div>
-                                  <span style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    padding: '2px 8px',
-                                    borderRadius: 5,
-                                    background: staff.team === 'B반' ? 'var(--accent-blue)' : 'var(--accent-purple)',
-                                    color: 'white',
-                                    letterSpacing: 0.5,
-                                  }}>
-                                    {staff.team}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{staff.shift_pattern}</div>
-                              </div>
-                              <div style={{ background: info.bg, color: info.color, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', border: `1px solid ${info.color}` }}>
-                                {info.icon} {info.label}
-                              </div>
-                            </div>
-
-                            {/* 주말 예상 박스 */}
-                            <div style={{
-                              background: info.bg,
-                              padding: '11px 14px',
-                              borderRadius: 8,
-                              marginTop: 12, marginBottom: 10,
-                              border: `1.5px solid ${info.color}`,
+                        {/* 헤더: 이름 + 반 배지 + 상태 */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 15, fontWeight: 700 }}>{staff.name}</span>
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 5,
+                              background: staff.team === 'B반' ? 'var(--accent-blue-dim)' : 'var(--accent-purple-dim, rgba(139, 92, 246, 0.15))',
+                              color: staff.team === 'B반' ? 'var(--accent-blue)' : 'var(--accent-purple)',
+                              letterSpacing: 0.3,
                             }}>
-                              <div style={{ fontSize: 11, color: info.color, fontWeight: 700, marginBottom: 3 }}>📅 주말까지 예상</div>
-                              <div style={{ fontSize: 22, fontWeight: 700, color: info.color }}>
-                                {predictedTotal.toFixed(1)}<span style={{ fontSize: 13 }}>h</span>
-                                {status === 'over' && (
-                                  <span style={{ fontSize: 12, marginLeft: 8, fontWeight: 700 }}>
-                                    {currentTotal >= 64 ? '· 한도 초과' : `· ↑ +${(predictedTotal - 64).toFixed(1)}h`}
-                                  </span>
-                                )}
-                                {status === 'warning' && (
-                                  <span style={{ fontSize: 12, marginLeft: 8, fontWeight: 700 }}>· 52h 초과</span>
-                                )}
-                                {status === 'normal' && (
-                                  <span style={{ fontSize: 12, marginLeft: 8, fontWeight: 700 }}>· 정상 페이스</span>
-                                )}
-                              </div>
-                            </div>
+                              {staff.team}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{staff.shift_pattern}</span>
+                          </div>
+                          <span style={{ fontSize: 11, color: info.color, fontWeight: 700 }}>● {info.label}</span>
+                        </div>
 
-                            {/* 권고 / 여유 */}
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
-                              {status === 'over' && currentTotal < 64 && daysRemaining > 0 ? (
-                                <>
-                                  <span style={{ fontSize: 13 }}>💡</span>
-                                  <span>잔여 {daysRemaining}일 · 일평균 <strong style={{ color: info.color }}>{recommendedHours.toFixed(1)}h 이하</strong> 권고</span>
-                                </>
-                              ) : status === 'warning' ? (
-                                <>
-                                  <span style={{ fontSize: 13 }}>✓</span>
-                                  <span>64h 한도까지 <strong style={{ color: 'var(--accent-green)' }}>{(64 - predictedTotal).toFixed(1)}h 여유</strong></span>
-                                </>
-                              ) : status === 'normal' ? (
-                                <>
-                                  <span style={{ fontSize: 13 }}>✓</span>
-                                  <span>52h까지 <strong style={{ color: 'var(--accent-green)' }}>{Math.max(0, 52 - predictedTotal).toFixed(1)}h 여유</strong></span>
-                                </>
-                              ) : (
-                                <>
-                                  <span style={{ fontSize: 13 }}>⚠</span>
-                                  <span>이미 64h 한도 초과 · 즉시 조치 필요</span>
-                                </>
-                              )}
-                            </div>
+                        {/* 본체: 게이지 + 주말 예상 */}
+                        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 10 }}>
+                          <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
 
-                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                              <div style={{ padding: '6px 8px', background: 'var(--bg-hover)', borderRadius: 5, textAlign: 'center' }}>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>근무일</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                  {daysWorked}<span style={{ fontSize: 10, color: 'var(--text-muted)' }}>일</span>
-                                </div>
-                              </div>
-                              <div style={{ padding: '6px 8px', background: 'var(--bg-hover)', borderRadius: 5, textAlign: 'center' }}>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>일평균</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                  {avgPerDay.toFixed(1)}<span style={{ fontSize: 10, color: 'var(--text-muted)' }}>h</span>
-                                </div>
-                              </div>
-                              <div style={{ padding: '6px 8px', background: 'var(--bg-hover)', borderRadius: 5, textAlign: 'center' }}>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>잔여</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: daysRemaining > 0 ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                                  {daysRemaining}<span style={{ fontSize: 10, color: 'var(--text-muted)' }}>일</span>
-                                </div>
-                              </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>📅 주말 예상</div>
+                            <div style={{ fontSize: 22, fontWeight: 700, color: info.color, lineHeight: 1 }}>
+                              {predictedTotal.toFixed(1)}<span style={{ fontSize: 12, marginLeft: 2 }}>h</span>
                             </div>
-                            <div style={{ marginTop: 8, textAlign: 'right', fontSize: 11, color: 'var(--accent-blue)', fontWeight: 600 }}>
-                              {isExpanded ? '▲ 상세 닫기' : '▼ 일별 상세 보기'}
+                            <div style={{ fontSize: 11, color: info.color, marginTop: 4, fontWeight: 600 }}>
+                              {status === 'over' ? (
+                                currentTotal >= 64 ? '한도 초과 ⚠' : `+${(predictedTotal - 64).toFixed(1)}h 초과`
+                              ) : status === 'warning' ? '52h 초과' : '정상 페이스'}
                             </div>
                           </div>
+                        </div>
+
+                        {/* 권고 메시지 */}
+                        <div style={{
+                          background: info.bg,
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          color: info.color,
+                          marginBottom: 10,
+                          fontWeight: 500,
+                        }}>
+                          {status === 'over' && currentTotal < 64 && daysRemaining > 0 ? (
+                            <>💡 잔여 {daysRemaining}일 일평균 <strong>{recommendedHours.toFixed(1)}h 이하</strong> 권고</>
+                          ) : status === 'warning' ? (
+                            <>✓ 64h 한도까지 <strong>{(64 - predictedTotal).toFixed(1)}h 여유</strong></>
+                          ) : status === 'normal' ? (
+                            <>✓ 52h까지 <strong>{Math.max(0, 52 - predictedTotal).toFixed(1)}h 여유</strong></>
+                          ) : (
+                            <>⚠ 이미 64h 한도 초과 · 즉시 조치 필요</>
+                          )}
+                        </div>
+
+                        {/* 통계: 한 줄 */}
+                        <div style={{
+                          display: 'flex',
+                          gap: 18,
+                          paddingTop: 8,
+                          borderTop: '0.5px dashed var(--border)',
+                          fontSize: 11,
+                          color: 'var(--text-secondary)',
+                          alignItems: 'center',
+                        }}>
+                          <div><span style={{ color: 'var(--text-muted)' }}>근무</span> <strong style={{ color: 'var(--text-primary)' }}>{daysWorked}일</strong></div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>평균</span> <strong style={{ color: 'var(--text-primary)' }}>{avgPerDay.toFixed(1)}h</strong></div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>잔여</span> <strong style={{ color: daysRemaining > 0 ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{daysRemaining}일</strong></div>
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600 }}>
+                            {isExpanded ? '▲ 닫기' : '▼ 상세'}
+                          </span>
                         </div>
                       </div>
 
@@ -393,14 +395,13 @@ export default function WorktimePage() {
                           padding: 0,
                           overflow: 'hidden',
                           marginTop: 4,
-                          border: `1.5px solid ${info.color}`,
-                          borderLeft: `5px solid ${info.color}`,
+                          border: `0.5px solid ${info.color}`,
+                          borderLeft: `3px solid ${info.color}`,
                           borderRadius: 10,
-                          boxShadow: `0 4px 12px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)`,
                         }}>
                           <div style={{
-                            padding: '11px 16px',
-                            borderBottom: `1px solid ${info.color}`,
+                            padding: '10px 14px',
+                            borderBottom: `0.5px solid ${info.color}`,
                             background: info.bg,
                             fontSize: 12,
                             fontWeight: 700,
