@@ -15,6 +15,43 @@ interface Staff {
   emp_no: string
 }
 
+// 원형 게이지 컴포넌트
+function CircularGauge({ value, max, secondary, color }: { value: number; max: number; secondary?: number; color: string }) {
+  const radius = 56
+  const circ = 2 * Math.PI * radius
+  const pct = Math.min(value / max, 1)
+  const dash = circ * pct
+  const secondaryAngle = secondary !== undefined ? (secondary / max) * 360 - 90 : null
+
+  return (
+    <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
+      <svg width="130" height="130" viewBox="0 0 130 130">
+        <circle cx="65" cy="65" r={radius} fill="none" stroke="var(--bg-hover)" strokeWidth="10" />
+        <circle
+          cx="65" cy="65" r={radius}
+          fill="none" stroke={color} strokeWidth="10"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform="rotate(-90 65 65)"
+          style={{ transition: 'stroke-dasharray 0.5s ease' }}
+        />
+        {secondaryAngle !== null && (
+          <circle
+            cx={65 + radius * Math.cos((secondaryAngle * Math.PI) / 180)}
+            cy={65 + radius * Math.sin((secondaryAngle * Math.PI) / 180)}
+            r="3.5"
+            fill="var(--accent-amber)"
+          />
+        )}
+      </svg>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+        <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>{value.toFixed(1)}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>/ {max}h</div>
+      </div>
+    </div>
+  )
+}
+
 export default function WorktimePage() {
   useRequireAuth()
   const { showToast, ToastUI } = useToast()
@@ -32,7 +69,7 @@ export default function WorktimePage() {
   const { weekStart: thisWeekStart, weekEnd: thisWeekEnd } = getWeekRange(today)
   const [weekStart, setWeekStart] = useState(thisWeekStart)
   const [weekEnd, setWeekEnd] = useState(thisWeekEnd)
-  const [selectedStaff, setSelectedStaff] = useState<string | null>(null)
+  const [expandedStaff, setExpandedStaff] = useState<string | null>(null)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -61,6 +98,7 @@ export default function WorktimePage() {
   }, [staffList, weekRecords, allRecords, weekStart, weekEnd])
 
   function changeWeek(direction: -1 | 0 | 1) {
+    setExpandedStaff(null)
     if (direction === 0) {
       setWeekStart(thisWeekStart)
       setWeekEnd(thisWeekEnd)
@@ -118,15 +156,30 @@ export default function WorktimePage() {
     setUploading(false)
   }
 
-  function getStatusInfo(status: string, currentTotal: number) {
+  function getStatusInfo(status: string, currentTotal: number, predictedTotal: number) {
     if (status === 'over') {
-      const isAlreadyOver = currentTotal >= 64
-      return { color: 'var(--accent-red)', bg: 'var(--accent-red-dim)', label: isAlreadyOver ? '한도 초과' : '초과 예상', icon: '⚠' }
+      const alreadyOver = currentTotal >= 64
+      return {
+        color: 'var(--accent-red)',
+        bg: 'var(--accent-red-dim)',
+        label: alreadyOver ? '위험 · 초과' : '위험',
+        icon: '🔥',
+      }
     }
     if (status === 'warning') {
-      return { color: 'var(--accent-amber)', bg: 'var(--accent-amber-dim)', label: currentTotal >= 52 ? '주의' : '주의 예상', icon: '⚡' }
+      return {
+        color: 'var(--accent-amber)',
+        bg: 'var(--accent-amber-dim)',
+        label: '주의',
+        icon: '⚠',
+      }
     }
-    return { color: 'var(--accent-green)', bg: 'var(--bg-card)', label: '정상', icon: '✓' }
+    return {
+      color: 'var(--accent-green)',
+      bg: 'var(--accent-green-dim, rgba(34,197,94,0.1))',
+      label: '정상',
+      icon: '✓',
+    }
   }
 
   const dayLabels = ['월', '화', '수', '목', '금', '토', '일']
@@ -156,10 +209,11 @@ export default function WorktimePage() {
         </div>
 
         <div className="content-area">
+          {/* 주차 선택 */}
           <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
-              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontFamily: 'Pretendard, sans-serif', fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
+              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
                 {weekStart} ~ {weekEnd}
                 {weekStart === thisWeekStart && <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--accent-blue)', color: 'white', padding: '1px 6px', borderRadius: 4 }}>이번 주</span>}
               </div>
@@ -167,7 +221,7 @@ export default function WorktimePage() {
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(0)}>이번 주</button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              💡 점심 1시간 일률 차감 / 야간 근무 자동 보정
+              💡 카드 클릭 시 일별 상세 표시
             </div>
           </div>
 
@@ -175,100 +229,140 @@ export default function WorktimePage() {
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>로딩 중...</div>
           ) : (
             <>
+              {/* 4명 원형 게이지 카드 */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
                 {staffStats.map(({ staff, currentTotal, daysWorked, daysRemaining, avgPerDay, predictedTotal, status }) => {
-                  const info = getStatusInfo(status, currentTotal)
-                  const progressPct = Math.min((currentTotal / 64) * 100, 100)
+                  const info = getStatusInfo(status, currentTotal, predictedTotal)
+                  const isExpanded = expandedStaff === staff.name
+                  const recommendedHours = daysRemaining > 0 ? Math.max(0, (64 - currentTotal) / daysRemaining) : 0
+
                   return (
-                    <div
-                      key={staff.name}
-                      className="card"
-                      style={{
-                        padding: 16, cursor: 'pointer',
-                        borderLeft: `4px solid ${info.color}`,
-                        background: selectedStaff === staff.name ? 'var(--bg-hover)' : info.bg,
-                      }}
-                      onClick={() => setSelectedStaff(selectedStaff === staff.name ? null : staff.name)}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 15, fontWeight: 700 }}>{staff.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{staff.team} · {staff.shift_pattern}</div>
-                        </div>
-                        <div style={{ fontSize: 11, color: info.color, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span>{info.icon}</span>{info.label}
-                        </div>
-                      </div>
+                    <div key={staff.name}>
+                      <div
+                        className="card"
+                        style={{
+                          padding: 18,
+                          cursor: 'pointer',
+                          borderTop: isExpanded ? `3px solid ${info.color}` : '3px solid transparent',
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => setExpandedStaff(isExpanded ? null : staff.name)}
+                      >
+                        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+                          {/* 원형 게이지 */}
+                          <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
 
-                      <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>현재 누계</div>
-                          <div style={{ fontSize: 22, fontWeight: 700, color: info.color, fontFamily: 'Pretendard, sans-serif' }}>
-                            {currentTotal}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>h</span>
-                          </div>
-                          <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{daysWorked}일 근무</div>
-                        </div>
-                        {daysRemaining > 0 && (
-                          <div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>주말 예상</div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: predictedTotal >= 64 ? 'var(--accent-red)' : predictedTotal >= 52 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'Pretendard, sans-serif' }}>
-                              {predictedTotal}<span style={{ fontSize: 10, color: 'var(--text-muted)' }}>h</span>
+                          {/* 우측 정보 */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 700 }}>{staff.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{staff.team} · {staff.shift_pattern}</div>
+                              </div>
+                              <div style={{ background: info.bg, color: info.color, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                {info.icon} {info.label}
+                              </div>
                             </div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>일평균 {avgPerDay}h × {daysRemaining}일</div>
+
+                            {/* 주말 예상 박스 */}
+                            <div style={{ background: info.bg, padding: '10px 12px', borderRadius: 6, marginTop: 12, marginBottom: 10 }}>
+                              <div style={{ fontSize: 10, color: info.color, fontWeight: 600 }}>주말까지 예상</div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: info.color, marginTop: 2 }}>
+                                {predictedTotal.toFixed(1)}<span style={{ fontSize: 12 }}>h</span>
+                                {status === 'over' && (
+                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>
+                                    {currentTotal >= 64 ? '한도 초과' : `↑ +${(predictedTotal - 64).toFixed(1)}h`}
+                                  </span>
+                                )}
+                                {status === 'warning' && (
+                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>52h 초과</span>
+                                )}
+                                {status === 'normal' && (
+                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>정상 페이스</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 권고 / 여유 */}
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {status === 'over' && currentTotal < 64 && daysRemaining > 0 ? (
+                                <>
+                                  <span>💡</span>
+                                  <span>잔여 {daysRemaining}일 · 일평균 <strong style={{ color: info.color }}>{recommendedHours.toFixed(1)}h 이하</strong> 권고</span>
+                                </>
+                              ) : status === 'warning' ? (
+                                <>
+                                  <span>✓</span>
+                                  <span>64h 한도까지 <strong style={{ color: 'var(--accent-green)' }}>{(64 - predictedTotal).toFixed(1)}h 여유</strong></span>
+                                </>
+                              ) : status === 'normal' ? (
+                                <>
+                                  <span>✓</span>
+                                  <span>52h까지 <strong style={{ color: 'var(--accent-green)' }}>{Math.max(0, 52 - predictedTotal).toFixed(1)}h 여유</strong></span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>⚠</span>
+                                  <span>이미 64h 한도 초과 · 즉시 조치 필요</span>
+                                </>
+                              )}
+                            </div>
+
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', gap: 16, fontSize: 10, color: 'var(--text-muted)' }}>
+                              <span>📅 {daysWorked}일 근무</span>
+                              <span>📊 일평균 {avgPerDay.toFixed(1)}h</span>
+                              {daysRemaining > 0 && <span>⏳ 잔여 {daysRemaining}일</span>}
+                              <span style={{ marginLeft: 'auto', color: 'var(--accent-blue)' }}>
+                                {isExpanded ? '▲ 닫기' : '▼ 상세 보기'}
+                              </span>
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
 
-                      <div style={{ position: 'relative', height: 8, background: 'var(--bg-hover)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ position: 'absolute', left: `${(52/64)*100}%`, top: 0, bottom: 0, width: 1, background: 'var(--accent-amber)', opacity: 0.5, zIndex: 2 }} />
-                        <div style={{ height: '100%', width: `${progressPct}%`, background: info.color, transition: 'width 0.3s' }} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
-                        <span>0h</span>
-                        <span style={{ color: 'var(--accent-amber)' }}>52h 주의</span>
-                        <span style={{ color: 'var(--accent-red)' }}>64h 한도</span>
-                      </div>
-
-                      {status === 'over' && daysRemaining > 0 && currentTotal < 64 && (
-                        <div style={{ marginTop: 10, padding: '6px 10px', background: 'var(--bg-card)', borderRadius: 4, fontSize: 10, color: 'var(--accent-red)' }}>
-                          🚨 권고: 잔여 {daysRemaining}일 동안 일평균 {Math.max(0, ((64 - currentTotal) / daysRemaining)).toFixed(1)}h 이하 근무
+                      {/* 일별 상세 (펼치기) */}
+                      {isExpanded && (
+                        <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: -1, borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+                          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                            📋 {staff.name} 일별 출퇴근 상세
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
+                            <tbody>
+                              {weekDates.map((d, i) => {
+                                const rec = weekRecords.find(r => r.staff_name === staff.name && r.date === d)
+                                const isWeekend = i === 5 || i === 6
+                                return (
+                                  <tr key={d} style={{ background: isWeekend ? 'var(--bg-hover)' : 'transparent', opacity: rec?.work_hours ? 1 : 0.6 }}>
+                                    <td className="tbl-td">{d.slice(5)}</td>
+                                    <td className="tbl-td" style={{ color: isWeekend ? 'var(--accent-red)' : 'inherit' }}>{dayLabels[i]}</td>
+                                    <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
+                                    <td className="tbl-td">{rec?.in_time || '-'}</td>
+                                    <td className="tbl-td">{rec?.out_time || '-'}</td>
+                                    <td className="tbl-td" style={{ fontWeight: 700, color: (rec?.work_hours || 0) >= 11 ? 'var(--accent-red)' : (rec?.work_hours || 0) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
+                                      {rec?.work_hours ? `${rec.work_hours.toFixed(1)}h` : '-'}
+                                    </td>
+                                    <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
+                                    <td className="tbl-td">{rec?.is_overtime ? <span style={{ color: 'var(--accent-red)', fontSize: 12 }}>●</span> : ''}</td>
+                                  </tr>
+                                )
+                              })}
+                              {/* 합계 행 */}
+                              <tr style={{ background: 'var(--bg-hover)', fontWeight: 700 }}>
+                                <td className="tbl-td" colSpan={5} style={{ textAlign: 'right' }}>주간 합계</td>
+                                <td className="tbl-td" style={{ fontWeight: 700, color: currentTotal >= 64 ? 'var(--accent-red)' : currentTotal >= 52 ? 'var(--accent-amber)' : 'var(--accent-green)' }}>
+                                  {currentTotal.toFixed(1)}h
+                                </td>
+                                <td className="tbl-td" colSpan={2}>{daysWorked}일 근무</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
                   )
                 })}
               </div>
-
-              {selectedStaff && (
-                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{selectedStaff} 일별 상세</div>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setSelectedStaff(null)}>닫기</button>
-                  </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
-                    <tbody>
-                      {weekDates.map((d, i) => {
-                        const rec = weekRecords.find(r => r.staff_name === selectedStaff && r.date === d)
-                        return (
-                          <tr key={d}>
-                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{d.slice(5)}</td>
-                            <td className="tbl-td">{dayLabels[i]}</td>
-                            <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{rec?.in_time || '-'}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{rec?.out_time || '-'}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 700 }}>
-                              {rec?.work_hours ? `${rec.work_hours}h` : '-'}
-                            </td>
-                            <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
-                            <td className="tbl-td">{rec?.is_overtime ? <span style={{ color: 'var(--accent-red)' }}>●</span> : ''}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
 
               {staffStats.every(s => s.currentTotal === 0) && (
                 <div className="empty-state-pro">
