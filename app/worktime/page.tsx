@@ -210,7 +210,18 @@ export default function WorktimePage() {
 
         <div className="content-area">
           {/* 주차 선택 */}
-          <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div className="card" style={{
+            padding: '14px 18px',
+            marginBottom: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 8,
+            border: '1.5px solid var(--border)',
+            borderRadius: 10,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
               <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
@@ -230,7 +241,7 @@ export default function WorktimePage() {
           ) : (
             <>
               {/* 4명 원형 게이지 카드 */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
                 {staffStats.map(({ staff, currentTotal, daysWorked, daysRemaining, avgPerDay, predictedTotal, status }) => {
                   const info = getStatusInfo(status, currentTotal, predictedTotal)
                   const isExpanded = expandedStaff === staff.name
@@ -241,16 +252,38 @@ export default function WorktimePage() {
                       <div
                         className="card"
                         style={{
-                          padding: 18,
+                          padding: 20,
                           cursor: 'pointer',
-                          borderTop: isExpanded ? `3px solid ${info.color}` : '3px solid transparent',
-                          transition: 'all 0.2s',
+                          border: `1.5px solid ${isExpanded ? info.color : 'var(--border)'}`,
+                          borderLeft: `5px solid ${info.color}`,
+                          borderRadius: 10,
+                          boxShadow: isExpanded ? `0 6px 20px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)` : '0 2px 8px rgba(0,0,0,0.04)',
+                          transition: 'all 0.2s ease',
+                          transform: isExpanded ? 'translateY(-1px)' : 'translateY(0)',
+                          position: 'relative',
                         }}
                         onClick={() => setExpandedStaff(isExpanded ? null : staff.name)}
+                        onMouseEnter={(e) => {
+                          if (!isExpanded) {
+                            (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
+                            ;(e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)`
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isExpanded) {
+                            (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
+                            ;(e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'
+                          }
+                        }}
                       >
-                        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
-                          {/* 원형 게이지 */}
-                          <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
+                        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                          {/* 좌측: 원형 게이지 */}
+                          <div style={{ paddingRight: 20, borderRight: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                            <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                              현재 누계 / 한도
+                            </div>
+                          </div>
 
                           {/* 우측 정보 */}
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -265,7 +298,13 @@ export default function WorktimePage() {
                             </div>
 
                             {/* 주말 예상 박스 */}
-                            <div style={{ background: info.bg, padding: '10px 12px', borderRadius: 6, marginTop: 12, marginBottom: 10 }}>
+                            <div style={{
+                              background: info.bg,
+                              padding: '12px 14px',
+                              borderRadius: 8,
+                              marginTop: 12, marginBottom: 10,
+                              border: `1px solid ${info.color}`,
+                            }}>
                               <div style={{ fontSize: 10, color: info.color, fontWeight: 600 }}>주말까지 예상</div>
                               <div style={{ fontSize: 20, fontWeight: 700, color: info.color, marginTop: 2 }}>
                                 {predictedTotal.toFixed(1)}<span style={{ fontSize: 12 }}>h</span>
@@ -322,9 +361,28 @@ export default function WorktimePage() {
 
                       {/* 일별 상세 (펼치기) */}
                       {isExpanded && (
-                        <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: -1, borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
-                          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                            📋 {staff.name} 일별 출퇴근 상세
+                        <div className="card" style={{
+                          padding: 0,
+                          overflow: 'hidden',
+                          marginTop: 4,
+                          border: `1.5px solid ${info.color}`,
+                          borderLeft: `5px solid ${info.color}`,
+                          borderRadius: 10,
+                          boxShadow: `0 4px 12px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)`,
+                        }}>
+                          <div style={{
+                            padding: '12px 18px',
+                            borderBottom: `1px solid ${info.color}`,
+                            background: info.bg,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: info.color,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <span>📋 {staff.name} · 일별 출퇴근 상세</span>
+                            <span style={{ fontSize: 10, opacity: 0.8 }}>{weekStart} ~ {weekEnd}</span>
                           </div>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
