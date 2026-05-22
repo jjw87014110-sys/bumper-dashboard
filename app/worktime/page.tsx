@@ -159,7 +159,7 @@ export default function WorktimePage() {
           <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
-              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
+              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontFamily: 'Pretendard, sans-serif', fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
                 {weekStart} ~ {weekEnd}
                 {weekStart === thisWeekStart && <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--accent-blue)', color: 'white', padding: '1px 6px', borderRadius: 4 }}>이번 주</span>}
               </div>
@@ -203,7 +203,7 @@ export default function WorktimePage() {
                       <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
                         <div>
                           <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>현재 누계</div>
-                          <div style={{ fontSize: 22, fontWeight: 700, color: info.color, fontFamily: 'JetBrains Mono, monospace' }}>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: info.color, fontFamily: 'Pretendard, sans-serif' }}>
                             {currentTotal}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>h</span>
                           </div>
                           <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{daysWorked}일 근무</div>
@@ -211,7 +211,7 @@ export default function WorktimePage() {
                         {daysRemaining > 0 && (
                           <div>
                             <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>주말 예상</div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: predictedTotal >= 64 ? 'var(--accent-red)' : predictedTotal >= 52 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: predictedTotal >= 64 ? 'var(--accent-red)' : predictedTotal >= 52 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'Pretendard, sans-serif' }}>
                               {predictedTotal}<span style={{ fontSize: 10, color: 'var(--text-muted)' }}>h</span>
                             </div>
                             <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>일평균 {avgPerDay}h × {daysRemaining}일</div>
@@ -252,12 +252,12 @@ export default function WorktimePage() {
                         const rec = weekRecords.find(r => r.staff_name === selectedStaff && r.date === d)
                         return (
                           <tr key={d}>
-                            <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{d.slice(5)}</td>
+                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{d.slice(5)}</td>
                             <td className="tbl-td">{dayLabels[i]}</td>
                             <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{rec?.in_time || '-'}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{rec?.out_time || '-'}</td>
-                            <td className="tbl-td" style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{rec?.in_time || '-'}</td>
+                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif' }}>{rec?.out_time || '-'}</td>
+                            <td className="tbl-td" style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 700 }}>
                               {rec?.work_hours ? `${rec.work_hours}h` : '-'}
                             </td>
                             <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
@@ -295,7 +295,7 @@ export default function WorktimePage() {
                 <div className="form-group">
                   <label className="form-label">연도</label>
                   <select className="form-select" value={year} onChange={e => setYear(Number(e.target.value))}>
-                    {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+                    {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}년</option>)}
                   </select>
                 </div>
                 <div className="form-group">
