@@ -1,5 +1,5 @@
 // ============================================
-// ERP 엑셀 파일 파싱 (.xls / .xlsx 모두 지원)
+// ERP 파일 파싱 (.xls / .xlsx / .html 지원)
 // 한글 인코딩 자동 처리
 // ============================================
 import * as XLSX from 'xlsx'
@@ -16,7 +16,6 @@ export interface WorktimeRecord {
   note: string | null
 }
 
-// 파일명에서 이름 추출 (보전반 4명 화이트리스트)
 const KNOWN_STAFF = ['이동주', '이수열', '정수연', '차상정']
 
 function extractStaffNameFromFilename(filename: string): string | null {
@@ -26,10 +25,31 @@ function extractStaffNameFromFilename(filename: string): string | null {
   return null
 }
 
+function matchKnownStaff(name: string): string | null {
+  if (!name) return null
+  for (const known of KNOWN_STAFF) {
+    if (name.includes(known) || known.includes(name)) return known
+  }
+  return null
+}
+
 function formatTime(raw: any): string | null {
   if (!raw && raw !== 0) return null
   const str = String(raw).trim()
-  if (!str || str === '-' || str === ' ') return null
+  if (!str || str === '-' || str === ':' || str === ' ') return null
+
+  // HH:MM 형식 처리
+  if (str.includes(':')) {
+    const parts = str.split(':')
+    if (parts.length !== 2) return null
+    const hh = parts[0].padStart(2, '0')
+    const mm = parts[1].padStart(2, '0')
+    if (!/^\d{2}$/.test(hh) || !/^\d{2}$/.test(mm)) return null
+    if (Number(hh) > 23 || Number(mm) > 59) return null
+    return `${hh}:${mm}`
+  }
+
+  // HHMM 형식 처리
   const padded = str.padStart(4, '0')
   if (padded.length !== 4) return null
   const hh = padded.slice(0, 2)
@@ -47,7 +67,7 @@ function calculateWorkHours(inTime: string | null, outTime: string | null): { ho
   let outMinutes = outH * 60 + outM
   if (outMinutes < inMinutes) outMinutes += 24 * 60
   const diffMinutes = outMinutes - inMinutes
-  const workMinutes = diffMinutes - 60
+  const workMinutes = diffMinutes - 60 // 점심 1시간 차감
   if (workMinutes <= 0) return { hours: 0, shiftType: null }
   const hours = Math.round((workMinutes / 60) * 100) / 100
   const shiftType = inH < 12 ? '주간' : '야간'
@@ -68,13 +88,78 @@ function isOvertime(outTime: string | null, shiftType: string | null): boolean {
   }
 }
 
-export async function parseErpExcel(
-  file: File,
-  year: number,
-  month: number
-): Promise<WorktimeRecord[]> {
+/**
+ * HTML 파일 파싱 (ERP 출퇴근현황 다운로드)
+ */
+async function parseErpHtml(file: File, year: number, month: number): Promise<WorktimeRecord[]> {
   const buffer = await file.arrayBuffer()
-  // codepage 949: EUC-KR(CP949) - 한국 ERP 시스템 호환
+  
+  // EUC-KR 디코딩 시도, 실패 시 UTF-8
+  let text: string
+  try {
+    text = new TextDecoder('euc-kr').decode(buffer)
+  } catch {
+    text = new TextDecoder('utf-8').decode(buffer)
+  }
+
+  // 브라우저에서 HTML 파싱
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(text, 'text/html')
+  const rows = doc.querySelectorAll('tr')
+
+  const records: WorktimeRecord[] = []
+  const staffNameFromFile = extractStaffNameFromFilename(file.name)
+
+  rows.forEach(row => {
+    const cells = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent?.trim() || '')
+    if (cells.length < 12) return
+
+    // ERP HTML 구조 (개선보전반 출퇴근현황):
+    // [0]부서코드, [1]부서명(공백/병합), [2]성명, [3]사번,
+    // [4]일자(DD), [5]요일, [6]휴일(Y), [7]휴가, [8]초과신청, [9]초과시간,
+    // [10]출근시간(HH:MM), [11]퇴근시간(HH:MM), [12...] 출입내역
+    
+    const nameRaw = cells[2] || ''
+    const ymdRaw = cells[4] || ''
+    const huil = (cells[6] || '').toUpperCase()
+    let inTimeRaw = cells[10] || ''
+    let outTimeRaw = cells[11] || ''
+
+    // 일자 검증 (DD 숫자만)
+    const day = Number(ymdRaw)
+    if (isNaN(day) || day < 1 || day > 31) return
+
+    // 이름 결정
+    let name = matchKnownStaff(nameRaw) || staffNameFromFile
+    if (!name) return
+
+    const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const inTime = formatTime(inTimeRaw)
+    const outTime = formatTime(outTimeRaw)
+    const { hours, shiftType } = calculateWorkHours(inTime, outTime)
+    const overtime = isOvertime(outTime, shiftType)
+
+    records.push({
+      staff_name: name,
+      date,
+      in_time: inTime,
+      out_time: outTime,
+      work_hours: hours,
+      shift_type: shiftType,
+      is_holiday: huil === 'Y',
+      is_overtime: overtime,
+      note: null,
+    })
+  })
+
+  return records
+}
+
+/**
+ * Excel 파일 파싱 (.xls / .xlsx)
+ */
+async function parseErpExcelFile(file: File, year: number, month: number): Promise<WorktimeRecord[]> {
+  const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { type: 'array', codepage: 949 })
   const sheetName = wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
@@ -82,7 +167,6 @@ export async function parseErpExcel(
   const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
   if (rows.length < 2) return []
 
-  // 헤더 매핑 (대소문자 무시)
   const headers = (rows[0] as any[]).map(h => String(h || '').toLowerCase().trim())
   const colNm = headers.indexOf('nm')
   const colYmd = headers.indexOf('ymd')
@@ -91,28 +175,19 @@ export async function parseErpExcel(
   const colOuttime = headers.indexOf('outtime')
 
   if (colYmd < 0 || colIntime < 0 || colOuttime < 0) {
-    throw new Error('엑셀 형식이 올바르지 않습니다. 필수 컬럼: ymd, intime, outtime')
+    throw new Error('엑셀 형식 오류: 필수 컬럼(ymd, intime, outtime) 누락')
   }
 
-  // 이름은 파일명에서 추출 (인코딩 안전)
   const staffNameFromFile = extractStaffNameFromFilename(file.name)
-
   const results: WorktimeRecord[] = []
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as any[]
-    
-    // 이름: 1) 파일명에서 우선, 2) 엑셀 nm 컬럼, 3) 둘 다 없으면 스킵
+
     let name = staffNameFromFile
     if (!name && colNm >= 0) {
       const nmValue = String(row[colNm] || '').trim()
-      // 알려진 이름 중 매칭되는 게 있으면 사용
-      for (const known of KNOWN_STAFF) {
-        if (nmValue.includes(known) || known.includes(nmValue)) {
-          name = known
-          break
-        }
-      }
+      name = matchKnownStaff(nmValue)
     }
     if (!name) continue
 
@@ -144,6 +219,23 @@ export async function parseErpExcel(
   }
 
   return results
+}
+
+/**
+ * 통합 파서: 파일 확장자에 따라 자동 라우팅
+ */
+export async function parseErpExcel(
+  file: File,
+  year: number,
+  month: number
+): Promise<WorktimeRecord[]> {
+  const filename = file.name.toLowerCase()
+  
+  if (filename.endsWith('.html') || filename.endsWith('.htm')) {
+    return parseErpHtml(file, year, month)
+  }
+  
+  return parseErpExcelFile(file, year, month)
 }
 
 export function getWeekRange(date: Date): { weekStart: string; weekEnd: string } {
