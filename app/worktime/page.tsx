@@ -151,7 +151,7 @@ export default function WorktimePage() {
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>보전반 근무시간 관리 · 주 52h 주의 / 64h 한도</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setUploadModal(true)}>+ ERP 엑셀 업로드</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setUploadModal(true)}>+ ERP 파일 업로드</button>
           </div>
         </div>
 
@@ -274,7 +274,7 @@ export default function WorktimePage() {
                 <div className="empty-state-pro">
                   <div className="empty-icon">📊</div>
                   <div className="empty-title">이번 주 근무 데이터가 없습니다</div>
-                  <div className="empty-desc">"+ ERP 엑셀 업로드"로 데이터를 등록하세요</div>
+                  <div className="empty-desc">"+ ERP 파일 업로드"로 데이터를 등록하세요</div>
                 </div>
               )}
             </>
@@ -286,7 +286,7 @@ export default function WorktimePage() {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && !uploading && setUploadModal(false)}>
           <div className="modal" style={{ maxWidth: 540 }}>
             <div className="modal-header">
-              <div className="modal-title">ERP 엑셀 업로드</div>
+              <div className="modal-title">ERP 파일 업로드</div>
               <button className="modal-close" onClick={() => !uploading && setUploadModal(false)}>×</button>
             </div>
 
@@ -307,10 +307,10 @@ export default function WorktimePage() {
               </div>
 
               <div className="form-group" style={{ marginTop: 12 }}>
-                <label className="form-label">엑셀 파일 (.xls) — 4명 한번에 선택</label>
+                <label className="form-label">ERP 파일 (.xls / .xlsx / .html) — 4명 한번에 선택</label>
                 <input
                   type="file"
-                  accept=".xls,.xlsx"
+                  accept=".xls,.xlsx,.html,.htm"
                   multiple
                   onChange={handleFilesSelect}
                   style={{ fontSize: 12, padding: 8, border: '1px dashed var(--border)', borderRadius: 4, width: '100%' }}
@@ -330,9 +330,11 @@ export default function WorktimePage() {
 
               <div style={{ marginTop: 14, padding: 10, background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
                 <div style={{ fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 4 }}>💡 처리 안내</div>
+                <div>• 지원 형식: <strong>HTML (권장)</strong>, .xls, .xlsx</div>
                 <div>• 같은 날짜 데이터는 덮어쓰기됩니다</div>
                 <div>• 점심시간 1시간 자동 차감</div>
                 <div>• 출근만 있고 퇴근 없는 경우 미입력 처리</div>
+                <div>• 파일명에 이름이 포함되면 자동 인식 (예: 5월_이동주.html)</div>
               </div>
             </div>
 
