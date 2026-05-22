@@ -224,9 +224,9 @@ export default function WorktimePage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
-              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
+              <div style={{ padding: '8px 16px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 14, fontWeight: 700, color: 'var(--accent-blue)' }}>
                 {weekStart} ~ {weekEnd}
-                {weekStart === thisWeekStart && <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--accent-blue)', color: 'white', padding: '1px 6px', borderRadius: 4 }}>이번 주</span>}
+                {weekStart === thisWeekStart && <span style={{ marginLeft: 8, fontSize: 11, background: 'var(--accent-blue)', color: 'white', padding: '2px 7px', borderRadius: 4 }}>이번 주</span>}
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(1)}>다음 ▶</button>
               <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(0)}>이번 주</button>
@@ -280,7 +280,7 @@ export default function WorktimePage() {
                           {/* 좌측: 원형 게이지 */}
                           <div style={{ paddingRight: 20, borderRight: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                             <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600 }}>
                               현재 누계 / 한도
                             </div>
                           </div>
@@ -289,10 +289,23 @@ export default function WorktimePage() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                               <div>
-                                <div style={{ fontSize: 16, fontWeight: 700 }}>{staff.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{staff.team} · {staff.shift_pattern}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                  <div style={{ fontSize: 19, fontWeight: 700 }}>{staff.name}</div>
+                                  <span style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '3px 10px',
+                                    borderRadius: 6,
+                                    background: staff.team === 'B반' ? 'var(--accent-blue)' : 'var(--accent-purple)',
+                                    color: 'white',
+                                    letterSpacing: 0.5,
+                                  }}>
+                                    {staff.team}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{staff.shift_pattern}</div>
                               </div>
-                              <div style={{ background: info.bg, color: info.color, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              <div style={{ background: info.bg, color: info.color, padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', border: `1px solid ${info.color}` }}>
                                 {info.icon} {info.label}
                               </div>
                             </div>
@@ -300,60 +313,75 @@ export default function WorktimePage() {
                             {/* 주말 예상 박스 */}
                             <div style={{
                               background: info.bg,
-                              padding: '12px 14px',
+                              padding: '14px 16px',
                               borderRadius: 8,
-                              marginTop: 12, marginBottom: 10,
-                              border: `1px solid ${info.color}`,
+                              marginTop: 14, marginBottom: 12,
+                              border: `1.5px solid ${info.color}`,
                             }}>
-                              <div style={{ fontSize: 10, color: info.color, fontWeight: 600 }}>주말까지 예상</div>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: info.color, marginTop: 2 }}>
-                                {predictedTotal.toFixed(1)}<span style={{ fontSize: 12 }}>h</span>
+                              <div style={{ fontSize: 12, color: info.color, fontWeight: 700, marginBottom: 4 }}>📅 주말까지 예상</div>
+                              <div style={{ fontSize: 26, fontWeight: 700, color: info.color }}>
+                                {predictedTotal.toFixed(1)}<span style={{ fontSize: 15 }}>h</span>
                                 {status === 'over' && (
-                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>
-                                    {currentTotal >= 64 ? '한도 초과' : `↑ +${(predictedTotal - 64).toFixed(1)}h`}
+                                  <span style={{ fontSize: 14, marginLeft: 10, fontWeight: 700 }}>
+                                    {currentTotal >= 64 ? '· 한도 초과' : `· ↑ +${(predictedTotal - 64).toFixed(1)}h`}
                                   </span>
                                 )}
                                 {status === 'warning' && (
-                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>52h 초과</span>
+                                  <span style={{ fontSize: 14, marginLeft: 10, fontWeight: 700 }}>· 52h 초과</span>
                                 )}
                                 {status === 'normal' && (
-                                  <span style={{ fontSize: 11, marginLeft: 8, fontWeight: 600 }}>정상 페이스</span>
+                                  <span style={{ fontSize: 14, marginLeft: 10, fontWeight: 700 }}>· 정상 페이스</span>
                                 )}
                               </div>
                             </div>
 
                             {/* 권고 / 여유 */}
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
                               {status === 'over' && currentTotal < 64 && daysRemaining > 0 ? (
                                 <>
-                                  <span>💡</span>
-                                  <span>잔여 {daysRemaining}일 · 일평균 <strong style={{ color: info.color }}>{recommendedHours.toFixed(1)}h 이하</strong> 권고</span>
+                                  <span style={{ fontSize: 15 }}>💡</span>
+                                  <span>잔여 {daysRemaining}일 · 일평균 <strong style={{ color: info.color, fontSize: 14 }}>{recommendedHours.toFixed(1)}h 이하</strong> 권고</span>
                                 </>
                               ) : status === 'warning' ? (
                                 <>
-                                  <span>✓</span>
-                                  <span>64h 한도까지 <strong style={{ color: 'var(--accent-green)' }}>{(64 - predictedTotal).toFixed(1)}h 여유</strong></span>
+                                  <span style={{ fontSize: 15 }}>✓</span>
+                                  <span>64h 한도까지 <strong style={{ color: 'var(--accent-green)', fontSize: 14 }}>{(64 - predictedTotal).toFixed(1)}h 여유</strong></span>
                                 </>
                               ) : status === 'normal' ? (
                                 <>
-                                  <span>✓</span>
-                                  <span>52h까지 <strong style={{ color: 'var(--accent-green)' }}>{Math.max(0, 52 - predictedTotal).toFixed(1)}h 여유</strong></span>
+                                  <span style={{ fontSize: 15 }}>✓</span>
+                                  <span>52h까지 <strong style={{ color: 'var(--accent-green)', fontSize: 14 }}>{Math.max(0, 52 - predictedTotal).toFixed(1)}h 여유</strong></span>
                                 </>
                               ) : (
                                 <>
-                                  <span>⚠</span>
+                                  <span style={{ fontSize: 15 }}>⚠</span>
                                   <span>이미 64h 한도 초과 · 즉시 조치 필요</span>
                                 </>
                               )}
                             </div>
 
-                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', gap: 16, fontSize: 10, color: 'var(--text-muted)' }}>
-                              <span>📅 {daysWorked}일 근무</span>
-                              <span>📊 일평균 {avgPerDay.toFixed(1)}h</span>
-                              {daysRemaining > 0 && <span>⏳ 잔여 {daysRemaining}일</span>}
-                              <span style={{ marginLeft: 'auto', color: 'var(--accent-blue)' }}>
-                                {isExpanded ? '▲ 닫기' : '▼ 상세 보기'}
-                              </span>
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                              <div style={{ padding: '8px 10px', background: 'var(--bg-hover)', borderRadius: 6, textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>근무일</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {daysWorked}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>일</span>
+                                </div>
+                              </div>
+                              <div style={{ padding: '8px 10px', background: 'var(--bg-hover)', borderRadius: 6, textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>일평균</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {avgPerDay.toFixed(1)}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>h</span>
+                                </div>
+                              </div>
+                              <div style={{ padding: '8px 10px', background: 'var(--bg-hover)', borderRadius: 6, textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>잔여</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: daysRemaining > 0 ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+                                  {daysRemaining}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>일</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 10, textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
+                              {isExpanded ? '▲ 상세 닫기' : '▼ 일별 상세 보기'}
                             </div>
                           </div>
                         </div>
@@ -371,10 +399,10 @@ export default function WorktimePage() {
                           boxShadow: `0 4px 12px ${info.bg}, 0 2px 4px rgba(0,0,0,0.04)`,
                         }}>
                           <div style={{
-                            padding: '12px 18px',
+                            padding: '14px 20px',
                             borderBottom: `1px solid ${info.color}`,
                             background: info.bg,
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: 700,
                             color: info.color,
                             display: 'flex',
@@ -382,10 +410,10 @@ export default function WorktimePage() {
                             alignItems: 'center',
                           }}>
                             <span>📋 {staff.name} · 일별 출퇴근 상세</span>
-                            <span style={{ fontSize: 10, opacity: 0.8 }}>{weekStart} ~ {weekEnd}</span>
+                            <span style={{ fontSize: 12, opacity: 0.8 }}>{weekStart} ~ {weekEnd}</span>
                           </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 12 }}>{h}</th>)}</tr></thead>
                             <tbody>
                               {weekDates.map((d, i) => {
                                 const rec = weekRecords.find(r => r.staff_name === staff.name && r.date === d)
