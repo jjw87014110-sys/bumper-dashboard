@@ -120,13 +120,27 @@ body {
 /* ── Cards ── */
 .card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
   padding: 18px;
-  box-shadow: var(--shadow);
-  transition: box-shadow 0.2s;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.card:hover { box-shadow: var(--shadow-md); }
+.card:hover { border-color: var(--border-light); }
+
+/* 액션 가능한 카드 (클릭 가능) */
+.card-action {
+  cursor: pointer;
+}
+.card-action:hover {
+  border-color: var(--accent-blue);
+  background: var(--bg-hover);
+}
+
+/* 상태 카드 (좌측 컬러바 포함) */
+.card-status-danger { border-left: 4px solid var(--accent-red); }
+.card-status-warning { border-left: 4px solid var(--accent-amber); }
+.card-status-success { border-left: 4px solid var(--accent-green); }
+.card-status-info { border-left: 4px solid var(--accent-blue); }
 
 /* ── Table ── */
 .data-table { width: 100%; border-collapse: collapse; }
@@ -344,6 +358,9 @@ tbody tr:hover { cursor: default; }
 .kpi-card {
   position: relative;
   overflow: hidden;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .kpi-card::before {
   content: '';
@@ -351,9 +368,11 @@ tbody tr:hover { cursor: default; }
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 4px;
   background: var(--accent-color, var(--accent-blue));
-  border-radius: 2px 0 0 2px;
+}
+.kpi-card:hover {
+  border-color: var(--accent-color, var(--accent-blue));
 }
 
 /* ── 로딩 스켈레톤 ── */
