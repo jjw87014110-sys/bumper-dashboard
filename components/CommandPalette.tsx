@@ -20,7 +20,6 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Ctrl+K / Cmd+K로 열기, ESC로 닫기, ? 키로 단축키 도움말
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -42,7 +41,6 @@ export default function CommandPalette() {
     }
   }, [open])
 
-  // 명령 목록 (페이지 + 빠른 액션)
   const commands: Command[] = [
     { id: 'dashboard', title: 'Dashboard', desc: '메인 대시보드', icon: '🏠', category: '페이지', href: '/dashboard', keywords: ['홈', '메인', '대시보드'] },
     { id: 'equipment', title: 'Equipment', desc: '설비 관리', icon: '🏭', category: '페이지', href: '/equipment', keywords: ['설비', '장비'] },
@@ -51,13 +49,13 @@ export default function CommandPalette() {
     { id: 'maintenance', title: 'Maintenance', desc: '정비 이력', icon: '🔧', category: '페이지', href: '/maintenance', keywords: ['정비', '수리', 'maintenance'] },
     { id: 'materials', title: 'Materials', desc: '자재 관리', icon: '📦', category: '페이지', href: '/materials', keywords: ['자재', '부품', 'materials'] },
     { id: 'staff', title: 'HR Info', desc: '인사정보', icon: '👤', category: '페이지', href: '/staff', keywords: ['인사', '직원', 'hr', 'staff'] },
+    { id: 'worktime', title: 'Worktime', desc: '보전반 근무시간 관리', icon: '⏰', category: '페이지', href: '/worktime', keywords: ['근무', '시간', '보전반', 'worktime', '52', '64', '주간', '야간'] },
     { id: 'memo', title: 'Memo', desc: '메모', icon: '📝', category: '페이지', href: '/memo', keywords: ['메모', '노트'] },
     { id: 'analysis', title: 'Analysis', desc: '데이터 분석', icon: '📈', category: '페이지', href: '/analysis', keywords: ['분석', '차트', 'analysis'] },
     { id: 'reports', title: 'Reports', desc: '주간/월간 보고서 + 히트맵', icon: '📑', category: '페이지', href: '/reports', keywords: ['보고서', '리포트', '히트맵', 'report'] },
     { id: 'manual', title: 'Manual', desc: '업무 매뉴얼', icon: '📖', category: '페이지', href: '/manual', keywords: ['매뉴얼', '메뉴얼', '가이드', '업무', '절차', 'manual', 'maual'] },
     { id: 'backup', title: 'Backup', desc: '백업/복원', icon: '💾', category: '페이지', href: '/backup', keywords: ['백업', 'backup'] },
     { id: 'security', title: 'Security', desc: '보안 설정', icon: '🛡️', category: '페이지', href: '/security', keywords: ['보안', '비밀번호', 'security'] },
-    // 빠른 액션
     { id: 'print', title: '현재 페이지 인쇄', icon: '🖨️', category: '액션', action: () => window.print(), keywords: ['인쇄', 'print'] },
     { id: 'theme', title: '다크/라이트 모드 전환', icon: '🌓', category: '액션', action: () => {
       const cur = document.documentElement.getAttribute('data-theme') || 'dark'
@@ -68,7 +66,6 @@ export default function CommandPalette() {
     { id: 'help', title: '단축키 도움말', icon: '❓', category: '도움말', action: () => { window.dispatchEvent(new CustomEvent('showShortcutHelp')) }, keywords: ['단축키', '도움말', 'help'] },
   ]
 
-  // 검색 필터
   const filtered = query
     ? commands.filter(c => {
         const q = query.toLowerCase()
@@ -78,7 +75,6 @@ export default function CommandPalette() {
       })
     : commands
 
-  // 카테고리별 그룹핑
   const grouped: Record<string, Command[]> = {}
   filtered.forEach(c => {
     if (!grouped[c.category]) grouped[c.category] = []
