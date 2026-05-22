@@ -9,47 +9,9 @@ interface ManualSection {
   title: string
   category: string
   description: string
-  steps?: { num: number; text: string; subSteps?: string[] }[]
+  steps: { num: number; text: string; subSteps?: string[] }[]
   tips?: string[]
-  subSections?: {
-    title: string
-    icon: string
-    description: string
-    color: string
-    steps: { num: number; text: string; subSteps?: string[] }[]
-    tips?: string[]
-  }[]
 }
-
-// FAQ
-const FAQS = [
-  { q: '알람을 입력했는데 어떻게 수정하나요?', a: 'Alarm 페이지에서 해당 알람 행 클릭 → 수정 버튼 클릭 → 내용 변경 후 저장' },
-  { q: '캘린더에 일정을 추가했는데 다른 날짜로 옮기고 싶어요', a: 'Dashboard 캘린더에서 일정을 마우스로 잡고 원하는 날짜로 드래그하면 이동됩니다' },
-  { q: '실수로 데이터를 삭제했어요', a: 'Security 페이지 > 데이터 변경 이력에서 누가 언제 삭제했는지 확인 가능. 복구는 Backup 페이지에서 백업 파일로 복원 가능' },
-  { q: '비밀번호를 잊어버렸어요', a: '관리자에게 문의하세요. Security 페이지에서 관리자가 비밀번호 초기화 가능' },
-  { q: '핸드폰에서도 사용 가능한가요?', a: '네, 모바일 반응형으로 제작되어 휴대폰 브라우저에서 정상 작동합니다' },
-  { q: '자재 부족 알림이 왜 안 떠요?', a: 'Materials 페이지에서 각 자재에 "최소 재고" 값을 0보다 큰 숫자로 설정해야 알림이 작동합니다' },
-  { q: '정비 예정 알림은 어떻게 작동하나요?', a: 'Equipment에서 설정한 "정비 주기"와 Maintenance의 마지막 정비일을 비교하여 7일 이내 도래 시 자동 표시' },
-  { q: '데이터를 엑셀로 받을 수 있나요?', a: '각 페이지 상단에 CSV 내보내기 버튼이 있습니다. Reports 페이지에서도 다운로드 가능' },
-  { q: 'Ctrl+K가 뭐예요?', a: '어디서든 Ctrl+K를 누르면 빠른 검색창이 열립니다. 페이지명/기능명 입력으로 빠르게 이동' },
-]
-
-// 용어 사전
-const GLOSSARY = [
-  { term: '융착', def: '플라스틱을 열로 녹여 붙이는 공정. 융착 에너지/시간/압력 등의 파라미터로 제어' },
-  { term: '펀칭', def: '제품에 구멍을 뚫는 공정. 펀치 핀의 마모도가 불량률에 직결' },
-  { term: '아이마킹 (i-Marking)', def: '주요 볼트나 클램프 위치에 잉크로 표시. 풀림이나 이동 여부를 시각적으로 확인하기 위함' },
-  { term: '홀더 (Holder)', def: '제품을 고정하는 부품. LH(좌측), RH(우측)로 구분' },
-  { term: '클램프 (Clamp)', def: '제품을 단단히 고정하는 장치' },
-  { term: '스토퍼 (Stopper)', def: '제품의 위치를 멈추게 하는 장치' },
-  { term: '융착혼 (Welding Horn)', def: '초음파 융착에서 진동을 전달하는 금속 부품' },
-  { term: '에어압', def: '실린더 등을 작동시키는 공기 압력 (단위: bar 또는 kgf/cm²)' },
-  { term: '찍힘 (Scratch)', def: '제품 표면의 흠집. 설비에 의한 것과 작업자/취급에 의한 것 구분' },
-  { term: '미융착', def: '융착이 제대로 되지 않은 상태. 실제 분리 시도로 판정' },
-  { term: '미펀칭', def: '구멍이 제대로 뚫리지 않은 상태' },
-  { term: 'LH / RH', def: 'Left Hand(좌측) / Right Hand(우측)' },
-  { term: 'FRT / RR', def: 'Front(앞) / Rear(뒤)' },
-]
 
 const MANUALS: ManualSection[] = [
   {
@@ -78,61 +40,46 @@ const MANUALS: ManualSection[] = [
     tips: ['정기 점검 시간: 매일 08:00, 16:00'],
   },
   {
-    id: 'inspection',
+    id: 'scratch',
     icon: '🔍',
-    title: '점검 (스크라치 + 아이마킹)',
-    category: 'Inspection',
-    description: '설비 점검 통합 관리. 스크라치와 아이마킹은 페이지 상단 탭으로 구분하여 사용합니다.',
-    subSections: [
+    title: '스크라치',
+    category: 'Scratch Management',
+    description: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에서 나온 불량품 중 설비에 의한 스크라치를 판단하여 기록합니다.',
+    steps: [
       {
-        title: '스크라치',
-        icon: '🔍',
-        color: 'var(--accent-amber)',
-        description: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에서 나온 불량품 중 설비에 의한 스크라치를 판단하여 기록합니다.',
-        steps: [
-          {
-            num: 1,
-            text: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에 참여하여 설비에 의한 스크라치 발생 여부를 점검합니다.',
-          },
-          {
-            num: 2,
-            text: 'Inspection 페이지 상단에서 [🔍 스크라치] 탭을 선택합니다.',
-          },
-          {
-            num: 3,
-            text: '설비에 의한 스크라치가 확인되면, 좌측에서 해당 설비 선택 후 [+ 찍힘 등록] 버튼을 클릭하여 등록합니다.',
-          },
-          {
-            num: 4,
-            text: '설비에 의한 스크라치가 없으면 별도 등록 없이 종료합니다.',
-          },
-        ],
-        tips: ['공정회의 참여 시간: 매일 07:30, 15:30'],
+        num: 1,
+        text: '오전 7시 30분, 오후 3시 30분 1라인 공정회의에 참여하여 설비에 의한 스크라치 발생 여부를 점검합니다.',
       },
       {
-        title: '아이마킹',
-        icon: '📊',
-        color: 'var(--accent-teal)',
-        description: '매일 1일 1설비씩 담당하여 후가공설비 아이마킹을 실시합니다.',
-        steps: [
-          {
-            num: 1,
-            text: '오전 7시 30분 조례 후, 해당 일자의 담당 설비로 이동합니다.',
-          },
-          {
-            num: 2,
-            text: '클램프, 스토퍼, 융착혼 등 설비 관련 모든 볼트를 점검하여 아이마킹을 실시합니다.',
-          },
-          {
-            num: 3,
-            text: 'Inspection 페이지 상단에서 [📊 아이마킹] 탭을 선택하고, 해당 설비를 클릭 후 점검일과 비고를 입력하여 [+ 점검 등록] 버튼을 클릭합니다.',
-          },
-        ],
-        tips: [
-          '예외: 주말, 공휴일, 휴가, 함평 출근일 제외',
-          '점검 시작 시간: 매일 07:30 조례 후',
-        ],
+        num: 2,
+        text: '설비에 의한 스크라치가 확인되면, 후가공설비 시스템 > 스크라치 목록에 추가합니다.',
       },
+      {
+        num: 3,
+        text: '설비에 의한 스크라치가 없으면 별도 등록 없이 종료합니다.',
+      },
+    ],
+    tips: ['공정회의 참여 시간: 매일 07:30, 15:30'],
+  },
+  {
+    id: 'imarking',
+    icon: '📊',
+    title: '아이마킹',
+    category: 'i-Marking Inspection',
+    description: '매일 1일 1설비씩 담당하여 후가공설비 아이마킹을 실시합니다.',
+    steps: [
+      {
+        num: 1,
+        text: '오전 7시 30분 조례 후, 해당 일자의 담당 설비로 이동합니다.',
+      },
+      {
+        num: 2,
+        text: '클램프, 스토퍼, 융착혼 등 설비 관련 모든 볼트를 점검하여 아이마킹을 실시합니다.',
+      },
+    ],
+    tips: [
+      '예외: 주말, 공휴일, 휴가, 함평 출근일 제외',
+      '점검 시작 시간: 매일 07:30 조례 후',
     ],
   },
   {
@@ -187,12 +134,53 @@ const MANUALS: ManualSection[] = [
     ],
     tips: ['스페어 자재 부족 시 즉시 구매 진행'],
   },
+  {
+    id: 'worktime',
+    icon: '⏰',
+    title: '근무시간 관리',
+    category: 'Worktime Management',
+    description: '보전반 4명의 주간 근무시간을 관리하고 법정 한도(주 64h) 초과 여부를 사전 모니터링합니다.',
+    steps: [
+      {
+        num: 1,
+        text: 'ERP 접속 → 인사관리 → 개인별 출퇴근현황 조회',
+      },
+      {
+        num: 2,
+        text: '보전반 4명(이동주·이수열·정수연·차상정) 각각의 데이터를 HTML 또는 엑셀로 다운로드',
+      },
+      {
+        num: 3,
+        text: '파일명을 "5월_이동주.html" 형식으로 변경 (이름 포함 필수)',
+      },
+      {
+        num: 4,
+        text: 'Worktime 페이지 → "+ ERP 파일 업로드" 클릭',
+      },
+      {
+        num: 5,
+        text: '연도·월 선택 후 4개 파일 한번에 선택하여 업로드',
+      },
+      {
+        num: 6,
+        text: '카드별 원형 게이지와 주말 예상 시간 확인 → 초과 위험자 사전 조치',
+      },
+    ],
+    tips: [
+      '인원: B반 2명(이동주·이수열, 주간→야간), A반 2명(정수연·차상정, 야간→주간)',
+      '근무시간 = (퇴근 - 출근) - 1시간(점심 일률 차감, 주야 동일)',
+      '52h: 주의 / 64h: 법정 한도 (근로기준법 제53조)',
+      '예측 로직: 현재 일평균 × 잔여 일수 = 주말 예상 시간',
+      '4월 데이터까지 함께 입력해야 5월 1주차(4/27~5/3)가 정확히 분석됨',
+      '같은 날짜 재업로드 시 덮어쓰기 (수정 가능)',
+      '카드 클릭 시 일별 출퇴근 상세 펼침',
+    ],
+  },
 ]
 
 export default function ManualPage() {
   useRequireAuth()
   const [activeId, setActiveId] = useState<string>('alarm')
-  const [tab, setTab] = useState<'manual' | 'faq' | 'glossary'>('manual')
 
   const active = MANUALS.find(m => m.id === activeId) || MANUALS[0]
 
@@ -202,49 +190,12 @@ export default function ManualPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>Manual</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>업무 매뉴얼</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>후가공설비 관리 업무 표준 절차서</div>
-          </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button className={`btn btn-sm ${tab === 'manual' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('manual')}>📋 업무 매뉴얼</button>
-            <button className={`btn btn-sm ${tab === 'faq' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('faq')}>❓ FAQ</button>
-            <button className={`btn btn-sm ${tab === 'glossary' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('glossary')}>📚 용어사전</button>
           </div>
         </div>
 
         <div className="content-area">
-          {tab === 'faq' ? (
-            <div className="card" style={{ padding: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>자주 묻는 질문 (FAQ)</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>총 {FAQS.length}건</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {FAQS.map((f, i) => (
-                  <details key={i} style={{ background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                    <summary style={{ padding: '12px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ color: 'var(--accent-blue)', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>Q{i+1}.</span>
-                      <span>{f.q}</span>
-                    </summary>
-                    <div style={{ padding: '12px 16px 16px 42px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, background: 'var(--bg-hover)', borderTop: '1px solid var(--border)' }}>
-                      {f.a}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </div>
-          ) : tab === 'glossary' ? (
-            <div className="card" style={{ padding: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>용어 사전</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>업무 관련 전문 용어 {GLOSSARY.length}개</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                {GLOSSARY.map((g, i) => (
-                  <div key={i} style={{ padding: '14px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, borderLeft: '3px solid var(--accent-blue)' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 6 }}>{g.term}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{g.def}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20 }}>
 
             {/* 좌측 매뉴얼 목록 */}
@@ -320,82 +271,6 @@ export default function ManualPage() {
                 </div>
               </div>
 
-              {/* 서브 섹션이 있는 경우 (통합 매뉴얼) */}
-              {active.subSections ? (
-                active.subSections.map((sub, sIdx) => (
-                  <div key={sIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {/* 서브 섹션 헤더 */}
-                    <div className="card" style={{
-                      padding: '14px 20px',
-                      borderLeft: `4px solid ${sub.color}`,
-                      background: `${sub.color}1A`,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                        <span style={{ fontSize: 18 }}>{sub.icon}</span>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: sub.color }}>{sub.title}</div>
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                        {sub.description}
-                      </div>
-                    </div>
-
-                    {/* 서브 섹션 절차 */}
-                    <div className="card" style={{ padding: '20px 24px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-                        <div style={{ width: 4, height: 18, background: sub.color, borderRadius: 2 }} />
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>업무 방법</div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {sub.steps.map(step => (
-                          <div key={step.num} style={{ display: 'flex', gap: 14 }}>
-                            <div style={{
-                              flexShrink: 0,
-                              width: 26, height: 26,
-                              borderRadius: '50%',
-                              background: sub.color,
-                              color: 'white',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 11, fontWeight: 700,
-                              fontFamily: 'JetBrains Mono, monospace',
-                            }}>
-                              {step.num}
-                            </div>
-                            <div style={{ flex: 1, paddingTop: 3, fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.7 }}>
-                              {step.text}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 서브 섹션 핵심 포인트 */}
-                    {sub.tips && sub.tips.length > 0 && (
-                      <div className="card" style={{
-                        padding: '14px 20px',
-                        background: 'var(--accent-amber-dim)',
-                        border: '1px solid var(--accent-amber)',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <span style={{ fontSize: 14 }}>💡</span>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-amber)' }}>
-                            {sub.title} 핵심 포인트
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {sub.tips.map((tip, i) => (
-                            <div key={i} style={{ fontSize: 11.5, color: 'var(--text-primary)', lineHeight: 1.7, display: 'flex', gap: 8 }}>
-                              <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>·</span>
-                              <span>{tip}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                /* 일반 매뉴얼 */
-                <>
               {/* 절차 카드 */}
               <div className="card" style={{ padding: '20px 24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
@@ -404,7 +279,7 @@ export default function ManualPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {active.steps && active.steps.map(step => (
+                  {active.steps.map(step => (
                     <div key={step.num} style={{ display: 'flex', gap: 14 }}>
                       {/* 단계 번호 */}
                       <div style={{
@@ -494,8 +369,6 @@ export default function ManualPage() {
                   </div>
                 </div>
               )}
-                </>
-              )}
 
               {/* 하단 네비게이션 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
@@ -523,7 +396,6 @@ export default function ManualPage() {
               </div>
             </div>
           </div>
-          )}
         </div>
       </div>
     </div>
