@@ -1,29 +1,35 @@
 // ============================================
-// ERP 엑셀 파일 파싱 (보전반 근무시간)
-// .xls 파일 (구버전) 지원
+// ERP 엑셀 파일 파싱 (.xls / .xlsx 모두 지원)
+// 한글 인코딩 자동 처리
 // ============================================
 import * as XLSX from 'xlsx'
 
 export interface WorktimeRecord {
   staff_name: string
-  date: string         // YYYY-MM-DD
-  in_time: string | null   // HH:MM
-  out_time: string | null  // HH:MM
-  work_hours: number | null  // 점심 1h 차감 후
-  shift_type: string | null  // 주간 / 야간
+  date: string
+  in_time: string | null
+  out_time: string | null
+  work_hours: number | null
+  shift_type: string | null
   is_holiday: boolean
   is_overtime: boolean
   note: string | null
 }
 
-/**
- * HHMM 형식의 시각 (예: 1830, 0650) 을 HH:MM 으로 변환
- */
+// 파일명에서 이름 추출 (보전반 4명 화이트리스트)
+const KNOWN_STAFF = ['이동주', '이수열', '정수연', '차상정']
+
+function extractStaffNameFromFilename(filename: string): string | null {
+  for (const name of KNOWN_STAFF) {
+    if (filename.includes(name)) return name
+  }
+  return null
+}
+
 function formatTime(raw: any): string | null {
   if (!raw && raw !== 0) return null
   const str = String(raw).trim()
   if (!str || str === '-' || str === ' ') return null
-  // 0650 또는 650 형식
   const padded = str.padStart(4, '0')
   if (padded.length !== 4) return null
   const hh = padded.slice(0, 2)
@@ -33,51 +39,28 @@ function formatTime(raw: any): string | null {
   return `${hh}:${mm}`
 }
 
-/**
- * 근무시간 계산 (점심 1시간 차감 일률 적용)
- * 야간 근무는 자정을 넘어가므로 +24h 처리
- */
 function calculateWorkHours(inTime: string | null, outTime: string | null): { hours: number | null; shiftType: string | null } {
   if (!inTime || !outTime) return { hours: null, shiftType: null }
-
   const [inH, inM] = inTime.split(':').map(Number)
   const [outH, outM] = outTime.split(':').map(Number)
-
   let inMinutes = inH * 60 + inM
   let outMinutes = outH * 60 + outM
-
-  // 야간 근무: 퇴근이 출근보다 작으면 +24h
-  if (outMinutes < inMinutes) {
-    outMinutes += 24 * 60
-  }
-
+  if (outMinutes < inMinutes) outMinutes += 24 * 60
   const diffMinutes = outMinutes - inMinutes
-  // 점심 1시간(60분) 일률 차감
   const workMinutes = diffMinutes - 60
   if (workMinutes <= 0) return { hours: 0, shiftType: null }
-
   const hours = Math.round((workMinutes / 60) * 100) / 100
-
-  // 주간/야간 판정: 출근 시간이 12시 이전이면 주간, 이후면 야간
   const shiftType = inH < 12 ? '주간' : '야간'
-
   return { hours, shiftType }
 }
 
-/**
- * 잔업 여부 판정
- * 주간: 17:00 초과 퇴근
- * 야간: 05:00 초과 퇴근
- */
 function isOvertime(outTime: string | null, shiftType: string | null): boolean {
   if (!outTime || !shiftType) return false
   const [outH, outM] = outTime.split(':').map(Number)
   const outMinutes = outH * 60 + outM
   if (shiftType === '주간') {
-    return outMinutes > 17 * 60  // 17:00 초과
+    return outMinutes > 17 * 60
   } else {
-    // 야간: 05:00 초과 (단, 야간은 자정 넘어 새벽에 끝나니 05:00 이전 시간도 의미)
-    // outH가 12 미만이면 새벽 시간이므로 05:00 초과 시 잔업
     if (outH < 12) {
       return outMinutes > 5 * 60
     }
@@ -85,27 +68,21 @@ function isOvertime(outTime: string | null, shiftType: string | null): boolean {
   }
 }
 
-/**
- * ERP 엑셀 파일 1개 파싱
- * @param file File 객체 (.xls)
- * @param year 연도 (예: 2026)
- * @param month 월 (1~12)
- */
 export async function parseErpExcel(
   file: File,
   year: number,
   month: number
 ): Promise<WorktimeRecord[]> {
   const buffer = await file.arrayBuffer()
-  const wb = XLSX.read(buffer, { type: 'array' })
+  // codepage 949: EUC-KR(CP949) - 한국 ERP 시스템 호환
+  const wb = XLSX.read(buffer, { type: 'array', codepage: 949 })
   const sheetName = wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
 
-  // JSON 변환 (헤더 포함)
   const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
   if (rows.length < 2) return []
 
-  // 헤더 매핑
+  // 헤더 매핑 (대소문자 무시)
   const headers = (rows[0] as any[]).map(h => String(h || '').toLowerCase().trim())
   const colNm = headers.indexOf('nm')
   const colYmd = headers.indexOf('ymd')
@@ -113,24 +90,40 @@ export async function parseErpExcel(
   const colIntime = headers.indexOf('intime')
   const colOuttime = headers.indexOf('outtime')
 
-  if (colNm < 0 || colYmd < 0 || colIntime < 0 || colOuttime < 0) {
-    throw new Error('엑셀 형식이 올바르지 않습니다. (필수 컬럼: nm, ymd, intime, outtime)')
+  if (colYmd < 0 || colIntime < 0 || colOuttime < 0) {
+    throw new Error('엑셀 형식이 올바르지 않습니다. 필수 컬럼: ymd, intime, outtime')
   }
+
+  // 이름은 파일명에서 추출 (인코딩 안전)
+  const staffNameFromFile = extractStaffNameFromFilename(file.name)
 
   const results: WorktimeRecord[] = []
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as any[]
-    const name = String(row[colNm] || '').trim()
-    const ymdRaw = row[colYmd]
-    if (!name || !ymdRaw) continue
+    
+    // 이름: 1) 파일명에서 우선, 2) 엑셀 nm 컬럼, 3) 둘 다 없으면 스킵
+    let name = staffNameFromFile
+    if (!name && colNm >= 0) {
+      const nmValue = String(row[colNm] || '').trim()
+      // 알려진 이름 중 매칭되는 게 있으면 사용
+      for (const known of KNOWN_STAFF) {
+        if (nmValue.includes(known) || known.includes(nmValue)) {
+          name = known
+          break
+        }
+      }
+    }
+    if (!name) continue
 
-    // 날짜 처리: DD만 있음 → year/month 결합
+    const ymdRaw = row[colYmd]
+    if (!ymdRaw) continue
+
     const day = Number(String(ymdRaw).padStart(2, '0'))
     if (isNaN(day) || day < 1 || day > 31) continue
 
     const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    const huil = String(row[colHuil] || '').trim().toUpperCase()
+    const huil = colHuil >= 0 ? String(row[colHuil] || '').trim().toUpperCase() : ''
     const inTime = formatTime(row[colIntime])
     const outTime = formatTime(row[colOuttime])
 
@@ -153,28 +146,18 @@ export async function parseErpExcel(
   return results
 }
 
-/**
- * 주차 계산 (월요일 시작 ~ 일요일 종료)
- * 반환: { weekStart, weekEnd } in YYYY-MM-DD
- */
 export function getWeekRange(date: Date): { weekStart: string; weekEnd: string } {
   const d = new Date(date)
   const day = d.getDay()
-  // 월요일을 시작: 일요일(0)이면 -6, 그 외 (day - 1)
   const diff = day === 0 ? -6 : 1 - day
   const monday = new Date(d)
   monday.setDate(d.getDate() + diff)
   const sunday = new Date(monday)
   sunday.setDate(monday.getDate() + 6)
-
   const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`
   return { weekStart: fmt(monday), weekEnd: fmt(sunday) }
 }
 
-/**
- * 근무시간 예측 (단순 평균)
- * @returns { currentTotal, daysWorked, daysRemaining, predicted, status }
- */
 export function predictWeeklyHours(
   records: WorktimeRecord[],
   weekStart: string,
@@ -196,7 +179,6 @@ export function predictWeeklyHours(
   const currentTotal = workedRecords.reduce((sum, r) => sum + (r.work_hours || 0), 0)
   const daysWorked = workedRecords.length
 
-  // 남은 일수 계산: 오늘 이후 ~ 주말까지
   const end = new Date(weekEnd)
   let daysRemaining = 0
   if (today < end) {
