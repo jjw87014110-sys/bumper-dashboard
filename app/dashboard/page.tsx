@@ -679,18 +679,15 @@ export default function DashboardPage() {
         <div className="content-area">
           <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
             {kpiCards.map((k: any) => (
-              <div key={k.label} className="card kpi-card" style={{ padding:'14px 16px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{k.label}</div>
-                  <span style={{ fontSize: 18, opacity: 0.7 }}>{k.icon}</span>
+              <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div style={{ fontSize:12, color:'var(--text-muted)', fontWeight: 600 }}>{k.label}</div>
+                  <span style={{ fontSize: 20, opacity: 0.8 }}>{k.icon}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontFamily:'JetBrains Mono, monospace', fontSize:26, fontWeight:700, color:k.color }}>{loading?'-':k.value}</span>
-                  <span style={{ fontSize:11, color:'var(--text-muted)' }}>{k.unit}</span>
-                  {k.warn && <span style={{ fontSize: 10, color: 'var(--accent-red)', marginLeft: 'auto' }}>⚠ 주의</span>}
-                </div>
-                <div style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: '100%', background: 'var(--bg-hover)' }}>
-                  <div style={{ height: '100%', width: '100%', background: k.color, opacity: 0.6 }} />
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 28, fontWeight: 700, color: k.color }}>{loading?'-':k.value}</span>
+                  <span style={{ fontSize: 12, color:'var(--text-muted)' }}>{k.unit}</span>
+                  {k.warn && <span style={{ fontSize: 10, color: 'var(--accent-red)', marginLeft: 'auto', fontWeight: 700 }}>● 주의</span>}
                 </div>
               </div>
             ))}
@@ -787,16 +784,21 @@ export default function DashboardPage() {
                 </div>
               )}
               {maintenanceDue.length > 0 && (
-                <div className="card" style={{ padding: 14, background: 'var(--accent-blue-dim)', border: '1px solid var(--accent-blue)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>🔧 정비 예정 알림</div>
-                    <span style={{ fontSize: 10, color: 'var(--accent-blue)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>7일 이내 {maintenanceDue.length}건</span>
+                <div className="card" style={{
+                  padding: 16,
+                  border: '0.5px solid var(--accent-blue)',
+                  borderLeft: '4px solid var(--accent-blue)',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-blue)' }}>● 정비 예정 알림</div>
+                    <span style={{ fontSize: 11, color: 'white', background: 'var(--accent-blue)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>7일 이내 {maintenanceDue.length}건</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                     {maintenanceDue.slice(0, 8).map((m: any) => (
-                      <div key={m.equipment_no} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                      <div key={m.equipment_no} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
                         <span>#{String(m.equipment_no).padStart(2,'0')} · {m.equipment_name}</span>
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: m.days_left < 0 ? 'var(--accent-red)' : 'var(--accent-blue)', fontWeight: 700 }}>
+                        <span style={{ color: m.days_left < 0 ? 'var(--accent-red)' : 'var(--accent-blue)', fontWeight: 700 }}>
                           {m.days_left < 0 ? `${Math.abs(m.days_left)}일 경과` : m.days_left === 0 ? '오늘' : `D-${m.days_left}`}
                         </span>
                       </div>
@@ -805,25 +807,30 @@ export default function DashboardPage() {
                 </div>
               )}
               {lowStockItems.length > 0 && (
-                <div className="card" style={{ padding: 14, background: 'var(--accent-red-dim)', border: '1px solid var(--accent-red)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-red)' }}>⚠ 자재 부족 알림</div>
-                    <span style={{ fontSize: 10, color: 'var(--accent-red)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>{lowStockItems.length}건</span>
+                <div className="card" style={{
+                  padding: 16,
+                  border: '0.5px solid var(--accent-red)',
+                  borderLeft: '4px solid var(--accent-red)',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-red)' }}>● 자재 부족 알림</div>
+                    <span style={{ fontSize: 11, color: 'white', background: 'var(--accent-red)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>{lowStockItems.length}건</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                     {lowStockItems.slice(0, 8).map((m: any) => (
-                      <div key={m.id} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                      <div key={m.id} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
                         <span>#{String(m.equipment_no).padStart(2,'0')} · {m.item_name}</span>
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-red)', fontWeight: 700 }}>{m.quantity}/{m.min_quantity}</span>
+                        <span style={{ color: 'var(--accent-red)', fontWeight: 700 }}>{m.quantity}/{m.min_quantity}</span>
                       </div>
                     ))}
                     {lowStockItems.length > 8 && (
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>외 {lowStockItems.length - 8}건</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>외 {lowStockItems.length - 8}건</div>
                     )}
                   </div>
                   <button
                     className="btn btn-ghost btn-sm"
-                    style={{ width: '100%', marginTop: 8, fontSize: 11 }}
+                    style={{ width: '100%', marginTop: 10, fontSize: 12 }}
                     onClick={() => {
                       const memo = `[자재 부족 발주 요청]\n${lowStockItems.map((m: any) =>
                         `- #${String(m.equipment_no).padStart(2,'0')} ${m.item_name}${m.spec ? ` (${m.spec})` : ''}${m.maker ? ` · ${m.maker}` : ''} : 현재 ${m.quantity}개 / 최소 ${m.min_quantity}개 → 부족 ${m.min_quantity - m.quantity}개`
