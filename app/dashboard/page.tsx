@@ -545,12 +545,22 @@ export default function DashboardPage() {
   const selectedDateObj = new Date(selectedDate+'T12:00:00')
   const isSelectedFriday = selectedDateObj.getDay() === 5
   const isSelectedWedThuFri = [3, 4, 5].includes(selectedDateObj.getDay()) // 수(3), 목(4), 금(5)
+  // 격주 금요일 판별: ISO 주차 기준 짝수 주
+  const isBiweekFriday = (() => {
+    if (!isSelectedFriday) return false
+    const jan1 = new Date(selectedDateObj.getFullYear(), 0, 1)
+    const days = Math.floor((selectedDateObj.getTime() - jan1.getTime()) / 86400000)
+    const weekNum = Math.ceil((days + jan1.getDay() + 1) / 7)
+    return weekNum % 2 === 0
+  })()
   const fridayTodo = { key: '주간보고서', label: '주간 보고서', regular: false }
   const worktimeTodo = { key: 'worktime갱신', label: 'Worktime 갱신 (ERP 업로드)', regular: true }
+  const backupTodo = { key: '격주백업', label: '데이터 백업 확인 (자동 격주)', regular: true }
   const allTodos = [
     ...DAILY_TODOS,
     ...(isSelectedWedThuFri ? [worktimeTodo] : []),
     ...(isSelectedFriday ? [fridayTodo] : []),
+    ...(isBiweekFriday ? [backupTodo] : []),
   ]
   const doneCount = allTodos.filter(t=>checked[t.key]).length + customTodos.filter(t=>customChecked[t]).length
   const totalCount = allTodos.length + customTodos.length
