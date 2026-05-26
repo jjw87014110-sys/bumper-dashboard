@@ -198,20 +198,29 @@ export default function DashboardPage() {
   const [showFireworks, setShowFireworks] = useState(false)
   const vibe = getDashboardVibe()
 
+  // 시계 + 폭죽 (userId 불필요)
   useEffect(() => {
-    fetchData()
     const t = setInterval(() => {
       const now = new Date()
       setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`)
     }, 1000)
+    if (vibe.showFireworks) setTimeout(() => startFireworks(), 800)
+    return () => clearInterval(t)
+  }, [])
+
+  // 개인 데이터 로드 (userId가 세팅된 후에만 실행)
+  useEffect(() => {
+    if (!userId) return
+    fetchData()
+    const userPrefix = `${userId}_`
     try {
-      const savedEvents = JSON.parse(localStorage.getItem('cal_events') || '{}')
+      const savedEvents = JSON.parse(localStorage.getItem(userPrefix + 'cal_events') || '{}')
       setEvents(savedEvents)
-      const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+      const savedCompleted = JSON.parse(localStorage.getItem(userPrefix + 'cal_completed') || '{}')
       setCompletedDates(savedCompleted)
       loadTodoForDate(todayKey)
       // DB에서 캘린더 이벤트 로드 (localStorage보다 우선)
-      supabase.from('calendar_events').select('*').eq('user_id', userId || '').then(({ data }) => {
+      supabase.from('calendar_events').select('*').eq('user_id', userId).then(({ data }) => {
         if (data && data.length > 0) {
           const dbEvents: Record<string, string[]> = {}
           data.forEach((r: any) => {
@@ -219,21 +228,15 @@ export default function DashboardPage() {
             dbEvents[r.date].push(r.label)
           })
           setEvents(dbEvents)
-          localStorage.setItem('cal_events', JSON.stringify(dbEvents))
+          localStorage.setItem(userPrefix + 'cal_events', JSON.stringify(dbEvents))
         }
       })
     } catch {}
-
-    // 폭죽/돈 효과
-    if (vibe.showFireworks) {
-      setTimeout(() => startFireworks(), 800)
-    }
-
-    return () => clearInterval(t)
-  }, [])
+  }, [userId])
 
   function loadTodoForDate(dateKey: string) {
-    supabase.from('todo_checks').select('*').eq('date', dateKey).eq('user_id', userId || '').then(({ data, error }) => {
+    if (!userId) return
+    supabase.from('todo_checks').select('*').eq('date', dateKey).eq('user_id', userId).then(({ data, error }) => {
       if (!error && data && data.length > 0) {
         const newChecked: Record<string, boolean> = {}
         const newCustom: string[] = []
@@ -251,11 +254,11 @@ export default function DashboardPage() {
         setCustomChecked(newCustomChecked)
       } else {
         try {
-          const saved = JSON.parse(localStorage.getItem('todo_' + dateKey) || '{}')
+          const saved = JSON.parse(localStorage.getItem(userId + '_todo_' + dateKey) || '{}')
           setChecked(saved)
-          const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+          const savedCustomTodos = JSON.parse(localStorage.getItem(userId + '_cal_custom_todos') || '{}')
           setCustomTodos(savedCustomTodos[dateKey] || [])
-          const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + dateKey) || '{}')
+          const savedCustomChecked = JSON.parse(localStorage.getItem(userId + '_custom_checked_' + dateKey) || '{}')
           setCustomChecked(savedCustomChecked)
         } catch {}
       }
@@ -349,9 +352,9 @@ export default function DashboardPage() {
     if (selectedDate !== todayKey) return
     const next = { ...checked, [item.key]: !checked[item.key] }
     setChecked(next)
-    localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
+    localStorage.setItem(userId + '_todo_' + todayKey, JSON.stringify(next))
     // DB에 upsert
-    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], user_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     updateCompleted(item.label, !checked[item.key], todayKey)
     if (item.key === '아이마킹' && !checked[item.key]) {
       const eqNo = getImarkingSchedule(today)
@@ -363,19 +366,19 @@ export default function DashboardPage() {
     if (selectedDate !== todayKey) return
     const next = { ...customChecked, [label]: !customChecked[label] }
     setCustomChecked(next)
-    localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
-    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
+    localStorage.setItem(userId + '_custom_checked_' + todayKey, JSON.stringify(next))
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], user_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     updateCompleted(label, !customChecked[label], todayKey)
   }
 
   function updateCompleted(label: string, isDone: boolean, dateKey: string) {
-    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+    const savedCompleted = JSON.parse(localStorage.getItem(userId + '_cal_completed') || '{}')
     const dayCompleted: string[] = [...(savedCompleted[dateKey]||[])]
     if (isDone) { if (!dayCompleted.includes(label)) dayCompleted.push(label) }
     else { const idx=dayCompleted.indexOf(label); if (idx>-1) dayCompleted.splice(idx,1) }
     const nextCompleted = { ...savedCompleted, [dateKey]: dayCompleted }
     setCompletedDates(nextCompleted)
-    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
+    localStorage.setItem(userId + '_cal_completed', JSON.stringify(nextCompleted))
   }
 
   function addEvent() {
@@ -383,16 +386,16 @@ export default function DashboardPage() {
     const trimmed = eventText.trim()
     const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
     setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
+    localStorage.setItem(userId + '_cal_events', JSON.stringify(next))
     // DB에 이벤트 저장
-    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed, user_id: userId || '' }]).then(() => {})
+    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed, user_id: userId }]).then(() => {})
     // 커스텀 TODO도 등록
-    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
-    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, user_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
+    const savedCustomTodos = JSON.parse(localStorage.getItem(userId + '_cal_custom_todos')||'{}')
     const dayTodos: string[] = savedCustomTodos[eventDate]||[]
     if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
     const nextCustom = { ...savedCustomTodos, [eventDate]: dayTodos }
-    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
+    localStorage.setItem(userId + '_cal_custom_todos', JSON.stringify(nextCustom))
     if (eventDate===selectedDate) setCustomTodos(dayTodos)
     setEventModal(false)
     setEventText('')
@@ -404,20 +407,20 @@ export default function DashboardPage() {
     arr.splice(idx,1)
     const next = { ...events, [date]: arr }
     setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
-    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    localStorage.setItem(userId + '_cal_events', JSON.stringify(next))
+    const sc = JSON.parse(localStorage.getItem(userId + '_cal_custom_todos')||'{}')
     const dt: string[] = sc[date]||[]
     const ti = dt.indexOf(removed)
     if (ti>-1) dt.splice(ti,1)
-    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
+    localStorage.setItem(userId + '_cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
     if (date===selectedDate) setCustomTodos(dt)
-    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const cp = JSON.parse(localStorage.getItem(userId + '_cal_completed')||'{}')
     const dc: string[] = cp[date]||[]
     const ci = dc.indexOf(removed)
     if (ci>-1) dc.splice(ci,1)
     const nc = { ...cp, [date]: dc }
     setCompletedDates(nc)
-    localStorage.setItem('cal_completed', JSON.stringify(nc))
+    localStorage.setItem(userId + '_cal_completed', JSON.stringify(nc))
   }
 
   // 드래그 앤 드롭: 일정을 다른 날짜로 이동
@@ -442,27 +445,27 @@ export default function DashboardPage() {
     arr[idx] = newLabel
     const next = { ...events, [date]: arr }
     setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
+    localStorage.setItem(userId + '_cal_events', JSON.stringify(next))
 
     // custom_todos 업데이트
-    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const sc = JSON.parse(localStorage.getItem(userId + '_cal_custom_todos')||'{}')
     const dt: string[] = sc[date]||[]
     const ti = dt.indexOf(oldLabel)
     if (ti>-1) dt[ti] = newLabel
-    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
+    localStorage.setItem(userId + '_cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
     if (date===selectedDate) setCustomTodos(dt)
 
     // completed 업데이트
-    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const cp = JSON.parse(localStorage.getItem(userId + '_cal_completed')||'{}')
     const dc: string[] = cp[date]||[]
     const ci = dc.indexOf(oldLabel)
     if (ci>-1) dc[ci] = newLabel
     setCompletedDates({ ...cp, [date]: dc })
-    localStorage.setItem('cal_completed', JSON.stringify({ ...cp, [date]: dc }))
+    localStorage.setItem(userId + '_cal_completed', JSON.stringify({ ...cp, [date]: dc }))
 
     // DB 동기화
-    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).eq('user_id', userId || '').then(() => {})
-    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).eq('user_id', userId || '').then(() => {})
+    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).eq('user_id', userId).then(() => {})
+    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).eq('user_id', userId).then(() => {})
 
     setEditEvent(null)
   }
@@ -476,19 +479,19 @@ export default function DashboardPage() {
     const toArr = [...(events[toDate]||[]), label]
     const next = { ...events, [fromDate]: fromArr, [toDate]: toArr }
     setEvents(next)
-    localStorage.setItem('cal_events', JSON.stringify(next))
+    localStorage.setItem(userId + '_cal_events', JSON.stringify(next))
 
     // custom_todos도 이동
-    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const sc = JSON.parse(localStorage.getItem(userId + '_cal_custom_todos')||'{}')
     const fromTodos: string[] = sc[fromDate]||[]
     const fi = fromTodos.indexOf(label)
     if (fi>-1) fromTodos.splice(fi,1)
     const toTodos: string[] = sc[toDate]||[]
     if (!toTodos.includes(label)) toTodos.push(label)
-    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [fromDate]: fromTodos, [toDate]: toTodos }))
+    localStorage.setItem(userId + '_cal_custom_todos', JSON.stringify({ ...sc, [fromDate]: fromTodos, [toDate]: toTodos }))
 
     // completed도 이동
-    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const cp = JSON.parse(localStorage.getItem(userId + '_cal_completed')||'{}')
     const fromComp: string[] = cp[fromDate]||[]
     const ci = fromComp.indexOf(label)
     if (ci>-1) {
@@ -497,15 +500,15 @@ export default function DashboardPage() {
       if (!toComp.includes(label)) toComp.push(label)
       const nc = { ...cp, [fromDate]: fromComp, [toDate]: toComp }
       setCompletedDates(nc)
-      localStorage.setItem('cal_completed', JSON.stringify(nc))
+      localStorage.setItem(userId + '_cal_completed', JSON.stringify(nc))
     }
 
     // DB 동기화
-    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).eq('user_id', userId || '').then(() => {
-      supabase.from('calendar_events').insert([{ date: toDate, label, user_id: userId || '' }]).then(() => {})
+    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).eq('user_id', userId).then(() => {
+      supabase.from('calendar_events').insert([{ date: toDate, label, user_id: userId }]).then(() => {})
     })
-    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).eq('user_id', userId || '').then(() => {
-      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
+    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).eq('user_id', userId).then(() => {
+      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, user_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     })
 
     if (selectedDate === fromDate) setCustomTodos(fromTodos)
