@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function StaffPage() {
-  const { userId } = useRequireAuth()
+  useRequireAuth()
   const [staff, setStaff] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [leaves, setLeaves] = useState<any[]>([])
@@ -28,7 +28,7 @@ export default function StaffPage() {
 
   async function fetchStaff() {
     setLoading(true)
-    const { data } = await supabase.from('staff').select('*').eq('user_id', userId || '').order('name')
+    const { data } = await supabase.from('staff').select('*').order('name')
     setStaff(data || [])
     setLoading(false)
   }
@@ -58,7 +58,7 @@ export default function StaffPage() {
       showToast('수정되었습니다')
       if (selected?.id === editStaff.id) setSelected({ ...selected, ...staffForm, total_leave: Number(staffForm.total_leave) })
     } else {
-      const { error } = await supabase.from('staff').insert([{ ...staffForm, total_leave: Number(staffForm.total_leave), user_id: userId || '' }])
+      const { error } = await supabase.from('staff').insert([{ ...staffForm, total_leave: Number(staffForm.total_leave) }])
       if (error) { showToast('등록 실패', 'error'); return }
       showToast('등록되었습니다')
     }
