@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function MemoPage() {
-  const { userId } = useRequireAuth()
+  useRequireAuth()
   const [memos, setMemos] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -21,7 +21,7 @@ export default function MemoPage() {
 
   async function fetchMemos() {
     setLoading(true)
-    const { data } = await supabase.from('memos').select('*').eq('user_id', userId || '').order('updated_at', { ascending: false })
+    const { data } = await supabase.from('memos').select('*').order('updated_at', { ascending: false })
     setMemos(data || [])
     setLoading(false)
   }
@@ -52,7 +52,7 @@ export default function MemoPage() {
       showToast('저장되었습니다')
       setSelected({ ...selected, title: title.trim(), content, updated_at: now })
     } else {
-      const { data, error } = await supabase.from('memos').insert([{ title: title.trim(), content, user_id: userId || '', created_at: now, updated_at: now }]).select()
+      const { data, error } = await supabase.from('memos').insert([{ title: title.trim(), content, created_at: now, updated_at: now }]).select()
       if (error) { showToast('저장 실패', 'error'); setSaving(false); return }
       showToast('메모가 생성되었습니다')
       if (data?.[0]) setSelected(data[0])
