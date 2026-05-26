@@ -1,13 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
-import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
-import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 
 export default function MemoPage() {
-  useRequireAuth()
+  const { userId } = useRequireAuth()
   const [memos, setMemos] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -23,17 +21,12 @@ export default function MemoPage() {
 
   async function fetchMemos() {
     setLoading(true)
-    try {
-      const { data, error } = await supabase.from('memos').select('*').order('updated_at', { ascending: false })
-      if (error) throw error
-      setMemos(data || [])
-    } catch (err: any) {
-      console.error('메모 로딩 실패:', err)
-    }
+    const { data } = await supabase.from('memos').select('*').eq('user_id', userId || '').order('updated_at', { ascending: false })
+    setMemos(data || [])
     setLoading(false)
   }
 
-  const { showToast, ToastUI } = useToast()
+  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
   function selectMemo(m: any) {
     setSelected(m)
@@ -59,7 +52,7 @@ export default function MemoPage() {
       showToast('저장되었습니다')
       setSelected({ ...selected, title: title.trim(), content, updated_at: now })
     } else {
-      const { data, error } = await supabase.from('memos').insert([{ title: title.trim(), content, created_at: now, updated_at: now }]).select()
+      const { data, error } = await supabase.from('memos').insert([{ title: title.trim(), content, user_id: userId || '', created_at: now, updated_at: now }]).select()
       if (error) { showToast('저장 실패', 'error'); setSaving(false); return }
       showToast('메모가 생성되었습니다')
       if (data?.[0]) setSelected(data[0])
@@ -71,7 +64,6 @@ export default function MemoPage() {
   async function deleteMemo(id: number) {
     await supabase.from('memos').delete().eq('id', id)
     showToast('삭제되었습니다')
-      logAudit(getCurrentUserName(), 'DELETE', 'memos', '메모 삭제')
     setDeleteId(null)
     if (selected?.id === id) { setSelected(null); setTitle(''); setContent('') }
     fetchMemos()
@@ -230,7 +222,7 @@ export default function MemoPage() {
         </div>
       )}
 
-      <ToastUI />
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
 }
