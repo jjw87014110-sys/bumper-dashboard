@@ -19,16 +19,16 @@ const navItems = [
   { href: '/materials', label: 'Materials', icon: 'box' },
   { divider: true },
   // ── 정보 / 분석 ──
-  { href: '/memo', label: 'Memo', icon: 'memo', personal: true },
+  { href: '/memo', label: 'Memo', icon: 'memo' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
   { href: '/reports', label: 'Reports', icon: 'report' },
-  { href: '/staff', label: 'HR Info', icon: 'user', personal: true },
+  { href: '/staff', label: 'HR Info', icon: 'user' },
   { href: '/worktime', label: 'Worktime', icon: 'clock' },
   { divider: true },
   // ── 참고 / 시스템 ──
   { href: '/manual', label: 'Manual', icon: 'manual' },
-  { href: '/backup', label: 'Backup', icon: 'box', adminOnly: true },
-  { href: '/security', label: 'Security', icon: 'shield', adminOnly: true },
+  { href: '/backup', label: 'Backup', icon: 'box' },
+  { href: '/security', label: 'Security', icon: 'shield' },
 ]
 
 function Icon({ name }: { name: string }) {
@@ -58,7 +58,7 @@ function Icon({ name }: { name: string }) {
 
 export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const path = usePathname()
-  const { logout, userRole } = useAuth()
+  const { logout } = useAuth()
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [alarmCount, setAlarmCount] = useState(0)
 
@@ -109,8 +109,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
           if (item.divider) return (
             <div key={i} style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
           )
-          // 관리자 전용 메뉴: 일반 사용자에게 숨김
-          if (item.adminOnly && userRole !== 'admin') return null
           const active = path === item.href
           return (
             <Link
