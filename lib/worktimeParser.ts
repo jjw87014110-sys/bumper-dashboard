@@ -65,11 +65,14 @@ function calculateWorkHours(inTime: string | null, outTime: string | null): { ho
   const [outH, outM] = outTime.split(':').map(Number)
   let inMinutes = inH * 60 + inM
   let outMinutes = outH * 60 + outM
+  // 야간 근무 보정: 퇴근(ex. 05:00)이 출근(ex. 20:00)보다 작으면 자정을 넘긴 것
   if (outMinutes < inMinutes) outMinutes += 24 * 60
   const diffMinutes = outMinutes - inMinutes
-  const workMinutes = diffMinutes - 60 // 점심 1시간 차감
+  // 점심 1시간 차감: 주간/야간 동일 적용 (사내 규정, 주간=점심 야간=저녁)
+  const workMinutes = diffMinutes - 60
   if (workMinutes <= 0) return { hours: 0, shiftType: null }
   const hours = Math.round((workMinutes / 60) * 100) / 100
+  // 출근 12시 이전이면 주간, 이후면 야간 (보전반 교대 기준: 주간 08시 / 야간 20시)
   const shiftType = inH < 12 ? '주간' : '야간'
   return { hours, shiftType }
 }
@@ -95,6 +98,7 @@ async function parseErpHtml(file: File, year: number, month: number): Promise<Wo
   const buffer = await file.arrayBuffer()
   
   // EUC-KR 디코딩 시도, 실패 시 UTF-8
+  // ERP 시스템이 EUC-KR로 HTML 출력하므로 먼저 euc-kr 디코딩 시도
   let text: string
   try {
     text = new TextDecoder('euc-kr').decode(buffer)
@@ -160,6 +164,7 @@ async function parseErpHtml(file: File, year: number, month: number): Promise<Wo
  */
 async function parseErpExcelFile(file: File, year: number, month: number): Promise<WorktimeRecord[]> {
   const buffer = await file.arrayBuffer()
+  // codepage 949: ERP .xls 파일이 CP949(EUC-KR) 인코딩
   const wb = XLSX.read(buffer, { type: 'array', codepage: 949 })
   const sheetName = wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
@@ -282,6 +287,7 @@ export function predictWeeklyHours(
   const avgPerDay = daysWorked > 0 ? currentTotal / daysWorked : 0
   const predictedTotal = currentTotal + avgPerDay * daysRemaining
 
+  // 근로기준법 제53조: 주 52시간 주의선, 64시간 법정 한도
   let status: 'normal' | 'warning' | 'over' = 'normal'
   if (predictedTotal >= 64 || currentTotal >= 64) status = 'over'
   else if (predictedTotal >= 52 || currentTotal >= 52) status = 'warning'
