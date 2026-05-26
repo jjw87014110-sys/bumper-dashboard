@@ -7,22 +7,6 @@ import Sidebar from '@/components/Sidebar'
 export default function SecurityPage() {
   const { userRole, userName, changePassword, changePin } = useRequireAuth()
 
-  // 관리자만 접근 가능
-  if (userRole !== 'admin') {
-    return (
-      <div className="page-container">
-        <Sidebar />
-        <div className="main-area">
-          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>접근 권한이 없습니다</div>
-            <div style={{ fontSize: 12 }}>관리자만 접근 가능한 페이지입니다</div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   // 비밀번호 변경
   const [oldPw, setOldPw] = useState('')
