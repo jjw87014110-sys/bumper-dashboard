@@ -546,7 +546,7 @@ export default function DashboardPage() {
   const isSelectedFriday = selectedDateObj.getDay() === 5
   const isSelectedWedThuFri = [3, 4, 5].includes(selectedDateObj.getDay()) // 수(3), 목(4), 금(5)
   const fridayTodo = { key: '주간보고서', label: '주간 보고서', regular: false }
-  const worktimeTodo = { key: 'worktime갱신', label: 'Worktime 갱신 (ERP 업로드)', regular: false }
+  const worktimeTodo = { key: 'worktime갱신', label: 'Worktime 갱신 (ERP 업로드)', regular: true }
   const allTodos = [
     ...DAILY_TODOS,
     ...(isSelectedWedThuFri ? [worktimeTodo] : []),
