@@ -1,12 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
-import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function StaffPage() {
-  useRequireAuth()
+  const { userId } = useRequireAuth()
   const [staff, setStaff] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [leaves, setLeaves] = useState<any[]>([])
@@ -29,7 +28,7 @@ export default function StaffPage() {
 
   async function fetchStaff() {
     setLoading(true)
-    const { data } = await supabase.from('staff').select('*').order('name')
+    const { data } = await supabase.from('staff').select('*').eq('user_id', userId || '').order('name')
     setStaff(data || [])
     setLoading(false)
   }
@@ -46,7 +45,7 @@ export default function StaffPage() {
     setLeaves(data || [])
   }
 
-  const { showToast, ToastUI } = useToast()
+  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
   function openAddStaff() { setEditStaff(null); setStaffForm({ name: '', department: '', employee_no: '', groupware_id: '', email: '', microsoft_id: '', position: '', total_leave: 15 }); setStaffModal(true) }
   function openEditStaff(s: any) { setEditStaff(s); setStaffForm({ name: s.name, department: s.department||'', employee_no: s.employee_no||'', groupware_id: s.groupware_id||'', email: s.email||'', microsoft_id: s.microsoft_id||'', position: s.position||'', total_leave: s.total_leave||15 }); setStaffModal(true) }
@@ -59,7 +58,7 @@ export default function StaffPage() {
       showToast('수정되었습니다')
       if (selected?.id === editStaff.id) setSelected({ ...selected, ...staffForm, total_leave: Number(staffForm.total_leave) })
     } else {
-      const { error } = await supabase.from('staff').insert([{ ...staffForm, total_leave: Number(staffForm.total_leave) }])
+      const { error } = await supabase.from('staff').insert([{ ...staffForm, total_leave: Number(staffForm.total_leave), user_id: userId || '' }])
       if (error) { showToast('등록 실패', 'error'); return }
       showToast('등록되었습니다')
     }
@@ -104,7 +103,7 @@ export default function StaffPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>HR Info</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>인사 정보</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>직원 정보 및 연월차 관리</div>
           </div>
           <button className="btn btn-primary" onClick={openAddStaff}>+ 직원 추가</button>
@@ -200,15 +199,15 @@ export default function StaffPage() {
                   : leaves.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>연차 사용 내역 없음</div>
                   : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['순번','사용 일자','사용 일수','사유','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
+                      <thead><tr>{['순번','사용 일자','사용 일수','사유','비고','관리'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                       <tbody>{leaves.map((l, i) => (
                         <tr key={l.id}>
-                          <td className="tbl-td">{i+1}</td>
-                          <td className="tbl-td"><span className="badge badge-blue">{l.use_date}</span></td>
-                          <td className="tbl-td"><span className="badge badge-amber">{l.days}일</span></td>
-                          <td className="tbl-td">{l.reason||'-'}</td>
-                          <td className="tbl-td">{l.note||'-'}</td>
-                          <td className="tbl-td">
+                          <td style={td}>{i+1}</td>
+                          <td style={td}><span className="badge badge-blue">{l.use_date}</span></td>
+                          <td style={td}><span className="badge badge-amber">{l.days}일</span></td>
+                          <td style={td}>{l.reason||'-'}</td>
+                          <td style={td}>{l.note||'-'}</td>
+                          <td style={td}>
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => openEditLeave(l)}>수정</button>
                               <button className="btn btn-danger btn-sm" onClick={() => setDeleteLeaveId(l.id)}>삭제</button>
@@ -302,7 +301,7 @@ export default function StaffPage() {
         </div>
       )}
 
-      <ToastUI />
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
 }
