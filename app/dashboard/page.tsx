@@ -171,7 +171,7 @@ const DAILY_TODOS = [
 const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
 
 export default function DashboardPage() {
-  useRequireAuth()
+  const { userId } = useRequireAuth()
   const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
   const [equipByType, setEquipByType] = useState<any>({})
   const [loading, setLoading] = useState(true)
@@ -211,7 +211,7 @@ export default function DashboardPage() {
       setCompletedDates(savedCompleted)
       loadTodoForDate(todayKey)
       // DB에서 캘린더 이벤트 로드 (localStorage보다 우선)
-      supabase.from('calendar_events').select('*').then(({ data }) => {
+      supabase.from('calendar_events').select('*').eq('user_id', userId || '').then(({ data }) => {
         if (data && data.length > 0) {
           const dbEvents: Record<string, string[]> = {}
           data.forEach((r: any) => {
@@ -233,7 +233,7 @@ export default function DashboardPage() {
   }, [])
 
   function loadTodoForDate(dateKey: string) {
-    supabase.from('todo_checks').select('*').eq('date', dateKey).then(({ data, error }) => {
+    supabase.from('todo_checks').select('*').eq('date', dateKey).eq('user_id', userId || '').then(({ data, error }) => {
       if (!error && data && data.length > 0) {
         const newChecked: Record<string, boolean> = {}
         const newCustom: string[] = []
@@ -351,7 +351,7 @@ export default function DashboardPage() {
     setChecked(next)
     localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
     // DB에 upsert
-    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     updateCompleted(item.label, !checked[item.key], todayKey)
     if (item.key === '아이마킹' && !checked[item.key]) {
       const eqNo = getImarkingSchedule(today)
@@ -364,7 +364,7 @@ export default function DashboardPage() {
     const next = { ...customChecked, [label]: !customChecked[label] }
     setCustomChecked(next)
     localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
-    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     updateCompleted(label, !customChecked[label], todayKey)
   }
 
@@ -385,9 +385,9 @@ export default function DashboardPage() {
     setEvents(next)
     localStorage.setItem('cal_events', JSON.stringify(next))
     // DB에 이벤트 저장
-    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed }]).then(() => {})
+    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed, user_id: userId || '' }]).then(() => {})
     // 커스텀 TODO도 등록
-    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
     const dayTodos: string[] = savedCustomTodos[eventDate]||[]
     if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
@@ -461,8 +461,8 @@ export default function DashboardPage() {
     localStorage.setItem('cal_completed', JSON.stringify({ ...cp, [date]: dc }))
 
     // DB 동기화
-    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).then(() => {})
-    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).then(() => {})
+    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).eq('user_id', userId || '').then(() => {})
+    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).eq('user_id', userId || '').then(() => {})
 
     setEditEvent(null)
   }
@@ -501,11 +501,11 @@ export default function DashboardPage() {
     }
 
     // DB 동기화
-    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).then(() => {
-      supabase.from('calendar_events').insert([{ date: toDate, label }]).then(() => {})
+    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).eq('user_id', userId || '').then(() => {
+      supabase.from('calendar_events').insert([{ date: toDate, label, user_id: userId || '' }]).then(() => {})
     })
-    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).then(() => {
-      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).eq('user_id', userId || '').then(() => {
+      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, user_id: userId || '', updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key,user_id' }).then(() => {})
     })
 
     if (selectedDate === fromDate) setCustomTodos(fromTodos)
