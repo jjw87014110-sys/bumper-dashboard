@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
-import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -23,19 +22,36 @@ const TABLES = [
 ]
 
 export default function BackupPage() {
-  useRequireAuth()
+  const { userRole } = useRequireAuth()
+
+  // 관리자만 접근 가능
+  if (userRole !== 'admin') {
+    return (
+      <div className="page-container">
+        <Sidebar />
+        <div className="main-area">
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>접근 권한이 없습니다</div>
+            <div style={{ fontSize: 12 }}>관리자만 접근 가능한 페이지입니다</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [backupLoading, setBackupLoading] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   const [backupHistory, setBackupHistory] = useState<any[]>([])
   const [restoreConfirm, setRestoreConfirm] = useState(false)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
   const [autoBackups, setAutoBackups] = useState<any[]>([])
 
-  const { showToast, ToastUI } = useToast()
+  function showToast(msg: string, type = 'success') { setToast({ msg, type }); setTimeout(() => setToast(null), 4000) }
 
   useEffect(() => {
     fetchCounts()
@@ -361,7 +377,7 @@ export default function BackupPage() {
         </div>
       )}
 
-      <ToastUI />
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
     </div>
   )
 }
