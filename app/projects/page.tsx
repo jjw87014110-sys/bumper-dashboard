@@ -205,7 +205,7 @@ export default function ProjectsPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>추진 업무 트래커</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Projects</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>BPR 후가공설비 진행 중인 프로젝트 관리 (주간보고서 자동 생성용)</div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
