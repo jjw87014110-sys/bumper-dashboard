@@ -31,6 +31,45 @@ const STATUS_COLORS: Record<string, string> = {
   '보류': 'badge-gray',
 }
 
+// "6/7", "2026-06-07" 등 다양한 날짜 표기를 Date로 파싱
+function parseFlexibleDate(s: string): Date | null {
+  if (!s) return null
+  const trimmed = s.trim()
+  const now = new Date()
+  let m = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  m = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (m) {
+    const month = Number(m[1]); const dayNum = Number(m[2])
+    let year = now.getFullYear()
+    if (now.getMonth() >= 10 && month <= 2) year++
+    else if (now.getMonth() <= 1 && month >= 11) year--
+    return new Date(year, month - 1, dayNum)
+  }
+  return null
+}
+
+// 날짜를 "N월 K주차" 라벨로 변환 (해당 월에서 몇 번째 주인지)
+// 주의 기준: 월~일 (ISO 방식과 유사). 그 날짜가 속한 주의 월요일을 기준으로 월/주차 결정.
+function getWeekLabel(s: string): string {
+  const d = parseFlexibleDate(s)
+  if (!d) return ''
+  // 해당 날짜가 속한 주의 월요일 구하기
+  const day = d.getDay() // 0=일, 1=월
+  const diffToMon = day === 0 ? -6 : 1 - day
+  const mon = new Date(d); mon.setDate(d.getDate() + diffToMon); mon.setHours(0,0,0,0)
+  // "이 주의 월요일이 속한 달"을 기준으로 주차 계산
+  const yyyy = mon.getFullYear()
+  const mm = mon.getMonth()
+  // 이 달의 1일이 속한 주의 월요일
+  const firstOfMonth = new Date(yyyy, mm, 1)
+  const firstDay = firstOfMonth.getDay()
+  const firstDiffToMon = firstDay === 0 ? -6 : 1 - firstDay
+  const firstMon = new Date(firstOfMonth); firstMon.setDate(firstOfMonth.getDate() + firstDiffToMon)
+  const weekNum = Math.round((mon.getTime() - firstMon.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
+  return `${mm + 1}월 ${weekNum}주차`
+}
+
 export default function ProjectsPage() {
   useRequireAuth()
   const { showToast, ToastUI } = useToast()
@@ -235,12 +274,16 @@ export default function ProjectsPage() {
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>📋 진행 이력</div>
                       <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-                        {p.history.map((h, i) => (
-                          <div key={i}>
-                            <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{h.date}</span>
-                            <span style={{ color: 'var(--text-secondary)' }}> : {h.content}</span>
-                          </div>
-                        ))}
+                        {p.history.map((h, i) => {
+                          const wk = getWeekLabel(h.date)
+                          return (
+                            <div key={i}>
+                              <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{h.date}</span>
+                              {wk && <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 4 }}>({wk})</span>}
+                              <span style={{ color: 'var(--text-secondary)' }}> : {h.content}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -250,12 +293,16 @@ export default function ProjectsPage() {
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>📅 금주 계획</div>
                       <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-                        {p.next_plan.map((h, i) => (
-                          <div key={i}>
-                            <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{h.date}</span>
-                            <span style={{ color: 'var(--text-secondary)' }}> : {h.content}</span>
-                          </div>
-                        ))}
+                        {p.next_plan.map((h, i) => {
+                          const wk = getWeekLabel(h.date)
+                          return (
+                            <div key={i}>
+                              <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{h.date}</span>
+                              {wk && <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 4 }}>({wk})</span>}
+                              <span style={{ color: 'var(--text-secondary)' }}> : {h.content}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -336,12 +383,19 @@ export default function ProjectsPage() {
                 </div>
                 {form.history.length > 0 && (
                   <div style={{ marginTop: 6, padding: 8, background: 'var(--bg-card)', borderRadius: 6, fontSize: 11 }}>
-                    {form.history.map((h: HistoryItem, i: number) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                        <span><b style={{ color: 'var(--accent-blue)' }}>{h.date}</b> : {h.content}</span>
-                        <button onClick={() => removeHistory(i)} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 11 }}>삭제</button>
-                      </div>
-                    ))}
+                    {form.history.map((h: HistoryItem, i: number) => {
+                      const wk = getWeekLabel(h.date)
+                      return (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                          <span>
+                            <b style={{ color: 'var(--accent-blue)' }}>{h.date}</b>
+                            {wk && <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 4 }}>({wk})</span>}
+                            <span> : {h.content}</span>
+                          </span>
+                          <button onClick={() => removeHistory(i)} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 11 }}>삭제</button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -356,12 +410,19 @@ export default function ProjectsPage() {
                 </div>
                 {form.next_plan.length > 0 && (
                   <div style={{ marginTop: 6, padding: 8, background: 'var(--bg-card)', borderRadius: 6, fontSize: 11 }}>
-                    {form.next_plan.map((h: HistoryItem, i: number) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                        <span><b style={{ color: 'var(--accent-green)' }}>{h.date}</b> : {h.content}</span>
-                        <button onClick={() => removePlan(i)} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 11 }}>삭제</button>
-                      </div>
-                    ))}
+                    {form.next_plan.map((h: HistoryItem, i: number) => {
+                      const wk = getWeekLabel(h.date)
+                      return (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                          <span>
+                            <b style={{ color: 'var(--accent-green)' }}>{h.date}</b>
+                            {wk && <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 4 }}>({wk})</span>}
+                            <span> : {h.content}</span>
+                          </span>
+                          <button onClick={() => removePlan(i)} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 11 }}>삭제</button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
