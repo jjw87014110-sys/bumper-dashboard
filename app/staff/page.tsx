@@ -103,7 +103,7 @@ export default function StaffPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>인사 정보</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>HR Info</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>직원 정보 및 연월차 관리</div>
           </div>
           <button className="btn btn-primary" onClick={openAddStaff}>+ 직원 추가</button>
