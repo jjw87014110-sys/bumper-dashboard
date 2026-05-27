@@ -30,6 +30,11 @@ export default function ReportsPage() {
   const [heatmapLoading, setHeatmapLoading] = useState(true)
   const [selectedHeatmapDay, setSelectedHeatmapDay] = useState<string|null>(null)
 
+  // 주간회의 자료 생성 (BPR 후가공설비 담당)
+  const [weeklyText, setWeeklyText] = useState<string>('')
+  const [weeklyLoading, setWeeklyLoading] = useState(false)
+  const [weeklyAiUsed, setWeeklyAiUsed] = useState(false)
+
   useEffect(() => {
     fetchHeatmap()
   }, [])
@@ -183,6 +188,77 @@ export default function ReportsPage() {
     return cells
   }, [heatmapData])
 
+  // 주간회의 자료 생성 (BPR 후가공설비)
+  async function generateWeeklyReport() {
+    setWeeklyLoading(true)
+    setWeeklyText('')
+    try {
+      // 이번 주 월~금 / 다음 주 월~금 계산
+      const now = new Date()
+      const day = now.getDay()
+      const diffToMon = day === 0 ? -6 : 1 - day
+      const monThis = new Date(now); monThis.setDate(now.getDate() + diffToMon)
+      const friThis = new Date(monThis); friThis.setDate(monThis.getDate() + 4)
+      const monNext = new Date(monThis); monNext.setDate(monThis.getDate() + 7)
+      const friNext = new Date(monNext); friNext.setDate(monNext.getDate() + 4)
+
+      const weekStart = toLocalDate(monThis)
+      const weekEnd = toLocalDate(friThis)
+      const nextWeekStart = toLocalDate(monNext)
+      const nextWeekEnd = toLocalDate(friNext)
+
+      // 진행중 프로젝트 조회
+      const { data: projects } = await supabase.from('projects')
+        .select('*').eq('status', '진행중').order('updated_at', { ascending: false })
+
+      // 이번 주 정비이력 (후가공설비 관련만 — 설비 유형으로 필터링 필요)
+      const { data: maint } = await supabase.from('maintenance')
+        .select('maintenance_date, equipment_no, defect_type, action_detail, note')
+        .gte('maintenance_date', weekStart).lte('maintenance_date', weekEnd + 'T23:59:59')
+        .order('maintenance_date', { ascending: false })
+
+      // 이번 주 + 다음 주 캘린더 일정
+      const { data: cal } = await supabase.from('calendar_events')
+        .select('date, label')
+        .gte('date', weekStart).lte('date', nextWeekEnd)
+        .order('date', { ascending: true })
+
+      const res = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projects: projects || [],
+          maintenance: maint || [],
+          calendarEvents: cal || [],
+          weekStart, weekEnd, nextWeekStart, nextWeekEnd,
+        }),
+      })
+      const json = await res.json()
+      if (json.error && !json.text) {
+        showToast('생성 실패: ' + json.error, 'error')
+        return
+      }
+      setWeeklyText(json.text || '')
+      setWeeklyAiUsed(!!json.aiUsed)
+      if (!json.aiUsed) {
+        showToast('AI 미사용 — DB 데이터로만 생성됨', 'info')
+      } else {
+        showToast('주간회의 자료 생성 완료')
+      }
+    } catch (e: any) {
+      showToast('오류: ' + (e?.message || ''), 'error')
+    } finally {
+      setWeeklyLoading(false)
+    }
+  }
+
+  function copyWeeklyText() {
+    if (!weeklyText) return
+    navigator.clipboard.writeText(weeklyText).then(() => {
+      showToast('클립보드에 복사되었습니다')
+    })
+  }
+
   const maxCount = Math.max(...Object.values(heatmapData), 1)
   function getHeatColor(count: number): string {
     if (count === 0) return 'var(--bg-hover)'
@@ -273,6 +349,60 @@ export default function ReportsPage() {
               <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span><strong>{selectedHeatmapDay}</strong> · 알람 <strong style={{ color: 'var(--accent-blue)' }}>{heatmapData[selectedHeatmapDay] || 0}건</strong></span>
                 <button className="btn btn-ghost btn-sm" onClick={() => setSelectedHeatmapDay(null)}>닫기</button>
+              </div>
+            )}
+          </div>
+
+          {/* 주간회의 자료 자동 생성 (BPR 후가공설비) */}
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>📋 주간회의 자료 생성</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  BPR 후가공설비 담당 · 추진 업무 트래커 + 정비이력 + 캘린더 기반
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary btn-sm" onClick={generateWeeklyReport} disabled={weeklyLoading}>
+                  {weeklyLoading ? '⏳ 생성 중...' : '🤖 자동 작성'}
+                </button>
+                {weeklyText && (
+                  <button className="btn btn-ghost btn-sm" onClick={copyWeeklyText}>📋 복사</button>
+                )}
+              </div>
+            </div>
+
+            {weeklyText ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: weeklyAiUsed ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                    {weeklyAiUsed ? '✨ Claude AI로 정제됨' : '📊 DB 데이터로만 생성됨 (API 키 없음)'}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    복사 후 PPT에 붙여넣기 가능
+                  </div>
+                </div>
+                <textarea
+                  className="form-input"
+                  style={{
+                    width: '100%', minHeight: 400, fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+                    fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                  }}
+                  value={weeklyText}
+                  onChange={e => setWeeklyText(e.target.value)}
+                />
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  💡 텍스트는 수정 가능합니다. 수정 후 복사 버튼으로 가져가세요.
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 20, textAlign: 'center', background: 'var(--bg-card)', borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  "자동 작성" 버튼을 누르면 이번 주 보고서를 생성합니다
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+                  추진 업무 트래커에 진행 중인 프로젝트가 있으면 더 풍부한 보고서가 생성됩니다
+                </div>
               </div>
             )}
           </div>
