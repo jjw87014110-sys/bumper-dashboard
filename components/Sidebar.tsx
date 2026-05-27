@@ -20,6 +20,7 @@ const navItems = [
   { divider: true },
   // ── 정보 / 분석 ──
   { href: '/memo', label: 'Memo', icon: 'memo' },
+  { href: '/projects', label: 'Projects', icon: 'worklog' },
   { href: '/analysis', label: 'Analysis', icon: 'analysis' },
   { href: '/reports', label: 'Reports', icon: 'report' },
   { href: '/staff', label: 'HR Info', icon: 'user' },
