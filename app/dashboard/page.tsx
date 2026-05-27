@@ -74,8 +74,6 @@ interface DashboardVibe {
   gradient: string
   borderColor: string
   titleColor: string
-  showFireworks: boolean
-  fireworkType: 'celebration' | 'money' | 'none'
 }
 
 function getDashboardVibe(): DashboardVibe {
@@ -92,7 +90,7 @@ function getDashboardVibe(): DashboardVibe {
   // 월급날 + 내일 쉬는 날 (대박 콤보)
   if (todayIsPayday && tomorrowIsOff) {
     return {
-      type: 'payday_weekend', emoji: '🤑', fireworkType: 'money', showFireworks: true,
+      type: 'payday_weekend', emoji: '🤑',
       title: '월급날인데 내일 쉰다고?? 인생 뭐 있어 💸🎉',
       subtitle: '통장 잔고 확인하고 퇴근 후 자축하세요 ㅋㅋ',
       gradient: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,107,0.15))',
@@ -109,7 +107,7 @@ function getDashboardVibe(): DashboardVibe {
     ]
     const msg = paydayMsgs[today.getDate() % paydayMsgs.length]
     return {
-      type: 'payday', emoji: '💰', fireworkType: 'money', showFireworks: true,
+      type: 'payday', emoji: '💰',
       ...msg,
       gradient: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.1))',
       borderColor: '#f59f00', titleColor: '#f59f00',
@@ -125,7 +123,7 @@ function getDashboardVibe(): DashboardVibe {
     ]
     const msg = weekendMsgs[today.getDate() % weekendMsgs.length]
     return {
-      type: 'weekend', emoji: '🎉', fireworkType: 'none', showFireworks: false,
+      type: 'weekend', emoji: '🎉',
       ...msg,
       gradient: 'linear-gradient(135deg, rgba(107,203,119,0.15), rgba(59,126,248,0.1))',
       borderColor: 'var(--accent-green)', titleColor: 'var(--accent-green)',
@@ -135,7 +133,7 @@ function getDashboardVibe(): DashboardVibe {
   // 내일 공휴일
   if (tomorrowIsOff) {
     return {
-      type: 'holiday', emoji: '🎊', fireworkType: 'none', showFireworks: false,
+      type: 'holiday', emoji: '🎊',
       title: `내일 ${tomorrowReason}! 쉬는 날 get 🙌`,
       subtitle: '갑자기 찾아온 행복... 오늘 업무 빠르게 정리하고 칼퇴!',
       gradient: 'linear-gradient(135deg, rgba(255,180,0,0.15), rgba(204,93,232,0.1))',
@@ -153,7 +151,7 @@ function getDashboardVibe(): DashboardVibe {
   }
   const msg = weekdayMsgs[todayWd] || { emoji: '☀️', title: '오늘도 화이팅!', subtitle: '좋은 하루 보내세요' }
   return {
-    type: 'weekday', emoji: msg.emoji, fireworkType: 'none', showFireworks: false,
+    type: 'weekday', emoji: msg.emoji,
     title: msg.title, subtitle: msg.subtitle,
     gradient: 'linear-gradient(135deg, rgba(59,126,248,0.08), rgba(32,201,151,0.06))',
     borderColor: 'var(--border)', titleColor: 'var(--text-primary)',
@@ -195,7 +193,6 @@ export default function DashboardPage() {
   const [eventText, setEventText] = useState('')
 
   // 분위기
-  const [showFireworks, setShowFireworks] = useState(false)
   const vibe = getDashboardVibe()
 
   useEffect(() => {
@@ -223,11 +220,6 @@ export default function DashboardPage() {
         }
       })
     } catch {}
-
-    // 폭죽/돈 효과
-    if (vibe.showFireworks) {
-      setTimeout(() => startFireworks(), 800)
-    }
 
     return () => clearInterval(t)
   }, [])
@@ -512,11 +504,6 @@ export default function DashboardPage() {
     if (selectedDate === toDate) setCustomTodos(toTodos)
   }
 
-  function startFireworks() {
-    setShowFireworks(true)
-    setTimeout(() => setShowFireworks(false), 4000)
-  }
-
   const calendarData = useMemo(() => {
     const firstDay = new Date(calYear, calMonth, 1)
     const lastDay = new Date(calYear, calMonth+1, 0)
@@ -575,94 +562,6 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-      {/* Canvas 이펙트 (축하 폭죽 or 돈 폭죽) */}
-      {showFireworks && (
-        <canvas
-          ref={(canvas) => {
-            if (!canvas) return
-            const ctx = canvas.getContext('2d')
-            if (!ctx) return
-            canvas.width = window.innerWidth
-            canvas.height = window.innerHeight
-            const W = canvas.width, H = canvas.height
-            const particles: any[] = []
-            const rockets: any[] = []
-            const isMoney = vibe.fireworkType === 'money'
-            const celebrationColors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#20c997','#f06595','#fcc419','#74c0fc','#a9e34b','#e599f7']
-            const moneyColors = ['#ffd700','#ffec3d','#f59f00','#fab005','#ffe066','#fff3bf','#82c91e','#69db7c']
-            const colors = isMoney ? moneyColors : celebrationColors
-            const emojis = isMoney ? ['💰','💵','💸','🤑','💳','🪙'] : ['🎉','✨','🎊','⭐','🌟','💫']
-            let frame = 0
-            const textParticles: any[] = []
-            const launches = [
-              {x:W*0.2,t:0},{x:W*0.5,t:15},{x:W*0.8,t:30},
-              {x:W*0.35,t:50},{x:W*0.65,t:65},{x:W*0.45,t:85},
-              {x:W*0.25,t:105},{x:W*0.75,t:120},{x:W*0.5,t:140},
-            ]
-            function explode(x: number, y: number) {
-              const count = 70 + Math.floor(Math.random()*30)
-              const baseColor = colors[Math.floor(Math.random()*colors.length)]
-              for (let i=0;i<count;i++) {
-                const angle = (Math.PI*2/count)*i + (Math.random()-0.5)*0.3
-                const speed = 2 + Math.random()*5
-                const life = 50 + Math.floor(Math.random()*30)
-                const size = 1.5 + Math.random()*2.5
-                const c = Math.random()>0.3 ? baseColor : colors[Math.floor(Math.random()*colors.length)]
-                particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life,maxLife:life,size,color:c,trail:[] as {x:number,y:number}[]})
-              }
-              // 이모지 파티클
-              for (let i=0;i<6;i++) {
-                const angle = Math.random()*Math.PI*2
-                const speed = 1.5+Math.random()*3
-                textParticles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-2,life:80,maxLife:80,emoji:emojis[Math.floor(Math.random()*emojis.length)],size:14+Math.random()*10})
-              }
-            }
-            function loop() {
-              ctx!.globalCompositeOperation = 'source-over'
-              ctx!.fillStyle = 'rgba(0,0,0,0.12)'
-              ctx!.fillRect(0,0,W,H)
-              ctx!.globalCompositeOperation = 'lighter'
-              launches.forEach(l => {
-                if (frame === l.t) rockets.push({x:l.x,y:H,vy:-11-Math.random()*4,targetY:H*0.15+Math.random()*H*0.3})
-              })
-              for (let i=rockets.length-1;i>=0;i--) {
-                const r = rockets[i]
-                r.y += r.vy
-                ctx!.beginPath(); ctx!.arc(r.x,r.y,2,0,Math.PI*2)
-                ctx!.fillStyle = isMoney ? '#ffd700' : '#ffd93d'; ctx!.fill()
-                for (let t=0;t<3;t++) { ctx!.beginPath(); ctx!.arc(r.x+(Math.random()-0.5)*3,r.y+t*7,1.5-t*0.4,0,Math.PI*2); ctx!.fillStyle=`rgba(255,217,61,${0.5-t*0.15})`; ctx!.fill() }
-                if (r.y<=r.targetY) { explode(r.x,r.y); rockets.splice(i,1) }
-              }
-              for (let i=particles.length-1;i>=0;i--) {
-                const p = particles[i]
-                p.trail.push({x:p.x,y:p.y}); if (p.trail.length>5) p.trail.shift()
-                p.vx*=0.98; p.vy*=0.98; p.vy+=0.04; p.x+=p.vx; p.y+=p.vy; p.life--
-                const alpha = p.life/p.maxLife
-                p.trail.forEach((t:{x:number,y:number},ti:number) => { const ta=(ti/p.trail.length)*alpha*0.4; ctx!.beginPath(); ctx!.arc(t.x,t.y,p.size*0.5,0,Math.PI*2); ctx!.fillStyle=p.color+Math.floor(ta*255).toString(16).padStart(2,'0'); ctx!.fill() })
-                ctx!.beginPath(); ctx!.arc(p.x,p.y,p.size*alpha,0,Math.PI*2); ctx!.fillStyle=p.color+Math.floor(alpha*255).toString(16).padStart(2,'0'); ctx!.fill()
-                if (alpha>0.5) { ctx!.beginPath(); ctx!.arc(p.x,p.y,p.size*3*alpha,0,Math.PI*2); ctx!.fillStyle=p.color+'15'; ctx!.fill() }
-                if (p.life<=0) particles.splice(i,1)
-              }
-              // 이모지 파티클 렌더링
-              ctx!.globalCompositeOperation = 'source-over'
-              for (let i=textParticles.length-1;i>=0;i--) {
-                const tp = textParticles[i]
-                tp.vy+=0.06; tp.x+=tp.vx; tp.y+=tp.vy; tp.life--
-                const alpha = tp.life/tp.maxLife
-                ctx!.globalAlpha = alpha
-                ctx!.font = `${tp.size}px sans-serif`
-                ctx!.fillText(tp.emoji, tp.x-tp.size/2, tp.y+tp.size/2)
-                if (tp.life<=0) textParticles.splice(i,1)
-              }
-              ctx!.globalAlpha = 1
-              frame++
-              if (frame < 260) requestAnimationFrame(loop)
-            }
-            ctx.fillStyle = 'rgba(0,0,0,0.01)'; ctx.fillRect(0,0,W,H); loop()
-          }}
-          style={{ position:'fixed',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:9999 }}
-        />
-      )}
 
       <Sidebar />
       <div className="main-area">
@@ -674,7 +573,18 @@ export default function DashboardPage() {
           <div style={{ display:'flex', gap:10, alignItems:'center' }}>
             <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:11, color:'var(--text-muted)', background:'var(--bg-card)', padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)' }}>{clock}</div>
             <button className="btn btn-primary btn-sm" onClick={() => { setEventDate(todayKey); setEventModal(true) }}>+ 일정 추가</button>
-            <button className="btn btn-ghost" onClick={fetchData}>↻</button>
+            <button
+              className="btn btn-ghost"
+              onClick={fetchData}
+              disabled={loading}
+              title="새로고침"
+              style={{
+                opacity: loading ? 0.5 : 1,
+                cursor: loading ? 'wait' : 'pointer',
+                display: 'inline-block',
+                animation: loading ? 'spin 0.8s linear infinite' : 'none',
+              }}
+            >↻</button>
           </div>
         </div>
 
@@ -685,11 +595,6 @@ export default function DashboardPage() {
             <div style={{ fontSize:13, fontWeight:700, color:vibe.titleColor }}>{vibe.title}</div>
             <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>{vibe.subtitle}</div>
           </div>
-          {vibe.showFireworks && (
-            <button className="btn btn-ghost btn-sm" onClick={startFireworks}>
-              {vibe.fireworkType === 'money' ? '💸 돈 터뜨리기!' : '🎆 축하!'}
-            </button>
-          )}
         </div>
 
         <div className="content-area">
