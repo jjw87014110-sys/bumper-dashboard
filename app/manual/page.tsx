@@ -190,7 +190,7 @@ export default function ManualPage() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>업무 매뉴얼</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Manual</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>후가공설비 관리 업무 표준 절차서</div>
           </div>
         </div>
