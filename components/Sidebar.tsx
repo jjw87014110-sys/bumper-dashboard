@@ -68,15 +68,20 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
       setTheme(saved)
       document.documentElement.setAttribute('data-theme', saved)
     }
-    // 이번 달 알람 건수 가져오기
-    const now = new Date()
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
-    supabase.from('alarm').select('punch_alarm, weld_alarm', { count: 'exact' })
-      .gte('date', monthStart)
-      .then(({ data }) => {
-        const count = (data||[]).filter((r: any) => (r.punch_alarm||0)+(r.weld_alarm||0) > 0).length
-        setAlarmCount(count)
-      })
+    // 이번 달 알람 건수 가져오기 (5분 주기 자동 갱신)
+    function fetchAlarmCount() {
+      const now = new Date()
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+      supabase.from('alarm').select('punch_alarm, weld_alarm', { count: 'exact' })
+        .gte('date', monthStart)
+        .then(({ data }) => {
+          const count = (data||[]).filter((r: any) => (r.punch_alarm||0)+(r.weld_alarm||0) > 0).length
+          setAlarmCount(count)
+        })
+    }
+    fetchAlarmCount()
+    const alarmTimer = setInterval(fetchAlarmCount, 5 * 60 * 1000)
+    return () => clearInterval(alarmTimer)
   }, [])
 
   function toggleTheme() {
