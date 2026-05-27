@@ -11,6 +11,42 @@ function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+// "6/7", "6/14", "2026-06-07" 같은 다양한 날짜 표현을 Date로 변환
+// 연도가 빠진 경우 현재 연도 사용 (단, 1~2월인데 현재 11~12월이면 다음 해로 가정)
+function parseFlexibleDate(s: string, refYear: number, refMonth: number): Date | null {
+  if (!s) return null
+  const trimmed = s.trim()
+  // YYYY-MM-DD or YYYY/MM/DD
+  let m = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  }
+  // M/D or MM/DD
+  m = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (m) {
+    const month = Number(m[1])
+    const dayNum = Number(m[2])
+    let year = refYear
+    // 연말(11~12월)에 다음 해 1~2월 날짜 입력하면 다음 해로 인식
+    if (refMonth >= 10 && month <= 2) year = refYear + 1
+    // 연초(1~2월)에 작년 11~12월 날짜 입력하면 작년으로
+    else if (refMonth <= 1 && month >= 11) year = refYear - 1
+    return new Date(year, month - 1, dayNum)
+  }
+  return null
+}
+
+// history/next_plan 배열에서 [start, end] 범위에 속하는 항목만 필터
+function filterByWeek(items: any[], start: Date, end: Date): any[] {
+  const refYear = start.getFullYear()
+  const refMonth = start.getMonth()
+  return (items || []).filter((it: any) => {
+    const d = parseFlexibleDate(it.date, refYear, refMonth)
+    if (!d) return false
+    return d >= start && d <= end
+  })
+}
+
 export default function ReportsPage() {
   useRequireAuth()
   const { showToast, ToastUI } = useToast()
@@ -193,25 +229,40 @@ export default function ReportsPage() {
     setWeeklyLoading(true)
     setWeeklyText('')
     try {
-      // 이번 주 월~금 / 다음 주 월~금 계산
+      // 이번 주 월~일 / 다음 주 월~일 계산 (7일 기준)
       const now = new Date()
-      const day = now.getDay()
-      const diffToMon = day === 0 ? -6 : 1 - day
-      const monThis = new Date(now); monThis.setDate(now.getDate() + diffToMon)
-      const friThis = new Date(monThis); friThis.setDate(monThis.getDate() + 4)
+      const day = now.getDay() // 0=일, 1=월, ..., 6=토
+      const diffToMon = day === 0 ? -6 : 1 - day // 이번 주 월요일까지 차이
+      const monThis = new Date(now); monThis.setDate(now.getDate() + diffToMon); monThis.setHours(0,0,0,0)
+      const sunThis = new Date(monThis); sunThis.setDate(monThis.getDate() + 6) // 일요일
       const monNext = new Date(monThis); monNext.setDate(monThis.getDate() + 7)
-      const friNext = new Date(monNext); friNext.setDate(monNext.getDate() + 4)
+      const sunNext = new Date(monNext); sunNext.setDate(monNext.getDate() + 6)
 
       const weekStart = toLocalDate(monThis)
-      const weekEnd = toLocalDate(friThis)
+      const weekEnd = toLocalDate(sunThis)
       const nextWeekStart = toLocalDate(monNext)
-      const nextWeekEnd = toLocalDate(friNext)
+      const nextWeekEnd = toLocalDate(sunNext)
 
       // 진행중 프로젝트 조회
-      const { data: projects } = await supabase.from('projects')
+      const { data: projectsRaw } = await supabase.from('projects')
         .select('*').eq('status', '진행중').order('updated_at', { ascending: false })
 
-      // 이번 주 정비이력 (후가공설비 관련만 — 설비 유형으로 필터링 필요)
+      // 각 프로젝트의 history / next_plan을 날짜로 필터링
+      const projects = (projectsRaw || []).map((p: any) => ({
+        ...p,
+        // 진행 이력: 이번 주(월~일) 날짜만 → "전주 실적"
+        history: filterByWeek(p.history || [], monThis, sunThis),
+        // 금주 계획: 다음 주(월~일) 날짜만 → "금주 계획"
+        next_plan: filterByWeek(p.next_plan || [], monNext, sunNext),
+      })).filter((p: any) => p.history.length > 0 || p.next_plan.length > 0)
+        // 이번/다음 주 모두 빈 프로젝트는 보고서에서 제외
+        .concat(
+          // 이번/다음 주 모두 빈 프로젝트라도 "추진 업무" 섹션엔 필요할 수 있어서 별도 정보로 보존
+          // → 일단은 빈 거 제외하는 게 보고서 가독성에 좋음
+          []
+        )
+
+      // 이번 주 정비이력
       const { data: maint } = await supabase.from('maintenance')
         .select('maintenance_date, equipment_no, defect_type, action_detail, note')
         .gte('maintenance_date', weekStart).lte('maintenance_date', weekEnd + 'T23:59:59')
