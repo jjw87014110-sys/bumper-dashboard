@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import LockScreen from '@/components/LockScreen'
 
 // localStorage 키 상수
 const KEYS = {
@@ -30,10 +31,13 @@ function clearSession() {
 interface AuthCtx {
   isLoggedIn: boolean
   isPinVerified: boolean
+  isLocked: boolean
   userRole: 'admin' | 'user' | null
   userName: string | null
   login: (id: string, pw: string) => Promise<boolean>
   verifyPin: (pin: string) => Promise<boolean>
+  lock: () => void
+  unlock: () => void
   logout: () => void
   changePassword: (oldPw: string, newPw: string) => Promise<{ ok: boolean; msg: string }>
   changePin: (oldPin: string, newPin: string) => Promise<{ ok: boolean; msg: string }>
@@ -42,10 +46,13 @@ interface AuthCtx {
 const AuthContext = createContext<AuthCtx>({
   isLoggedIn: false,
   isPinVerified: false,
+  isLocked: false,
   userRole: null,
   userName: null,
   login: async () => false,
   verifyPin: async () => false,
+  lock: () => {},
+  unlock: () => {},
   logout: () => {},
   changePassword: async () => ({ ok: false, msg: '' }),
   changePin: async () => ({ ok: false, msg: '' }),
@@ -54,6 +61,7 @@ const AuthContext = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isPinVerified, setIsPinVerified] = useState(false)
+  const [isLocked, setIsLocked] = useState(false)
   const [userRole, setUserRole] = useState<'admin' | 'user' | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
   const router = useRouter()
@@ -71,7 +79,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const n = localStorage.getItem(KEYS.name)
     if (r) setUserRole(r)
     if (n) setUserName(n)
+    // 잠금 상태 복원 (sessionStorage — 탭 새로고침해도 유지, 탭 닫으면 사라짐)
+    if (sessionStorage.getItem('bumper_locked') === '1') setIsLocked(true)
   }, [])
+
+  // 5분 자동 잠금 — 마우스/키보드 무동작 감지
+  useEffect(() => {
+    if (!isLoggedIn || !isPinVerified) return
+    const IDLE_MS = 5 * 60 * 1000 // 5분
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    function reset() {
+      if (timer) clearTimeout(timer)
+      // 이미 잠긴 상태면 타이머 재시작 안 함
+      if (sessionStorage.getItem('bumper_locked') === '1') return
+      timer = setTimeout(() => {
+        sessionStorage.setItem('bumper_locked', '1')
+        setIsLocked(true)
+      }, IDLE_MS)
+    }
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
+    events.forEach(ev => window.addEventListener(ev, reset, { passive: true }))
+    reset() // 초기 타이머 시작
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      events.forEach(ev => window.removeEventListener(ev, reset))
+    }
+  }, [isLoggedIn, isPinVerified])
 
   const login = async (id: string, pw: string) => {
     const { data } = await supabase
@@ -149,16 +185,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     clearSession()
+    sessionStorage.removeItem('bumper_locked')
     setIsLoggedIn(false)
     setIsPinVerified(false)
+    setIsLocked(false)
     setUserRole(null)
     setUserName(null)
     router.push('/login')
   }
 
+  const lock = () => {
+    sessionStorage.setItem('bumper_locked', '1')
+    setIsLocked(true)
+  }
+
+  const unlock = () => {
+    sessionStorage.removeItem('bumper_locked')
+    setIsLocked(false)
+  }
+
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isPinVerified, userRole, userName, login, verifyPin, logout, changePassword, changePin }}>
+    <AuthContext.Provider value={{ isLoggedIn, isPinVerified, isLocked, userRole, userName, login, verifyPin, lock, unlock, logout, changePassword, changePin }}>
       {children}
+      {isLocked && isLoggedIn && <LockScreen onUnlock={unlock} />}
     </AuthContext.Provider>
   )
 }
