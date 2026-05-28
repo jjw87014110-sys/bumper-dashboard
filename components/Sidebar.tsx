@@ -59,7 +59,7 @@ function Icon({ name }: { name: string }) {
 
 export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const path = usePathname()
-  const { logout } = useAuth()
+  const { logout, lock } = useAuth()
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [alarmCount, setAlarmCount] = useState(0)
 
@@ -173,6 +173,14 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>생산기술</div>
           </div>
         </div>
+        <button
+          className="btn btn-ghost"
+          style={{ width: '100%', justifyContent: 'center', fontSize: 11, marginBottom: 6 }}
+          onClick={lock}
+          title="화면 잠금 (5분 무동작 시 자동 잠금)"
+        >
+          🔒 화면 잠금
+        </button>
         <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }} onClick={logout}>
           Log out
         </button>
