@@ -501,6 +501,42 @@ export default function DashboardPage() {
     setEditEvent(null)
   }
 
+  // 일정 이동 헬퍼: N일 만큼 이동 (음수=과거)
+  function shiftEvent(days: number) {
+    if (!editEvent) return
+    const d = new Date(editEvent.date)
+    d.setDate(d.getDate() + days)
+    const newDate = toLocalDate(d)
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    // 캘린더가 다른 달이면 해당 달로 전환
+    if (d.getMonth() !== calMonth || d.getFullYear() !== calYear) {
+      setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+    }
+  }
+
+  // 일정 이동 헬퍼: N개월 만큼 이동
+  function shiftEventMonth(months: number) {
+    if (!editEvent) return
+    const d = new Date(editEvent.date)
+    const originalDay = d.getDate()
+    d.setMonth(d.getMonth() + months)
+    if (d.getDate() !== originalDay) d.setDate(0)
+    const newDate = toLocalDate(d)
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+  }
+
+  // 일정 이동 헬퍼: 특정 날짜로 이동
+  function moveEventToDate(newDate: string) {
+    if (!editEvent || !newDate || newDate === editEvent.date) return
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    const d = new Date(newDate)
+    setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+  }
+
   function moveEvent(fromDate: string, idx: number, toDate: string) {
     if (fromDate === toDate) return
     const fromArr = [...(events[fromDate]||[])]
@@ -974,7 +1010,31 @@ export default function DashboardPage() {
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <div className="form-group">
                 <label className="form-label">날짜</label>
-                <div style={{ fontSize:12, color:'var(--text-secondary)', padding:'8px 12px', background:'var(--bg-hover)', borderRadius:6 }}>{editEvent.date}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)', padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6, marginBottom: 8 }}>
+                  📅 {editEvent.date}
+                </div>
+
+                {/* 퀵 이동 버튼 */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, marginBottom: 8 }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(-1)}>◀ 1일 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(1)}>1일 후 ▶</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(-7)}>◀ 1주 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(7)}>1주 후 ▶</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEventMonth(-1)}>◀ 1달 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEventMonth(1)}>1달 후 ▶</button>
+                </div>
+
+                {/* 특정 날짜로 이동 */}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={editEvent.date}
+                    onChange={e => moveEventToDate(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>특정 날짜로 이동</span>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">내용</label>
