@@ -177,6 +177,10 @@ export default function DashboardPage() {
   const [today] = useState(new Date())
   const todayKey = toLocalDate(today)
 
+  // KPI 카드 기간 필터 (오늘/이번주/이번달/최근30일/전체)
+  type KpiPeriod = 'today' | 'week' | 'month' | '30days' | 'all'
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('month')
+
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [calMonth, setCalMonth] = useState(today.getMonth())
 
@@ -224,6 +228,12 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [])
 
+  // kpiPeriod 변경 시 통계 재조회
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kpiPeriod])
+
   function loadTodoForDate(dateKey: string) {
     supabase.from('todo_checks').select('*').eq('date', dateKey).then(({ data, error }) => {
       if (!error && data && data.length > 0) {
@@ -267,12 +277,42 @@ export default function DashboardPage() {
 
   async function fetchData() {
     setLoading(true)
-    const monthStart = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`
+
+    // 기간별 시작일 계산
+    let periodStart: string | null = null
+    const now = new Date()
+    if (kpiPeriod === 'today') {
+      periodStart = toLocalDate(now)
+    } else if (kpiPeriod === 'week') {
+      // 이번 주 월요일
+      const d = new Date(now)
+      const day = d.getDay()
+      const diffToMon = day === 0 ? -6 : 1 - day
+      d.setDate(d.getDate() + diffToMon)
+      periodStart = toLocalDate(d)
+    } else if (kpiPeriod === 'month') {
+      periodStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+    } else if (kpiPeriod === '30days') {
+      const d = new Date(now); d.setDate(d.getDate() - 30)
+      periodStart = toLocalDate(d)
+    }
+    // kpiPeriod === 'all' → periodStart = null (필터 없음)
+
+    // 각 테이블 쿼리 — 기간 필터 적용
+    const alarmQ = supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date')
+    const maintQ = supabase.from('maintenance').select('equipment_no, maintenance_date')
+    const scratchQ = supabase.from('scratch').select('id, date')
+    if (periodStart) {
+      alarmQ.gte('date', periodStart)
+      maintQ.gte('maintenance_date', periodStart)
+      scratchQ.gte('date', periodStart)
+    }
+
     const [eq, al, mn, sc, mat] = await Promise.all([
       supabase.from('equipment').select('*'),
-      supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date').gte('date', monthStart),
-      supabase.from('maintenance').select('equipment_no, date'),
-      supabase.from('scratch').select('id'),
+      alarmQ,
+      maintQ,
+      scratchQ,
       supabase.from('materials').select('*'),
     ])
     const eqData = eq.data || []
@@ -292,8 +332,10 @@ export default function DashboardPage() {
     // 정비 주기 분석: 마지막 정비일 + 주기 = 다음 예정일
     const maintByEq: Record<number, string> = {}
     ;(mn.data||[]).forEach((m: any) => {
-      if (!maintByEq[m.equipment_no] || m.date > maintByEq[m.equipment_no]) {
-        maintByEq[m.equipment_no] = m.date
+      const mdate = m.maintenance_date
+      if (!mdate) return
+      if (!maintByEq[m.equipment_no] || mdate > maintByEq[m.equipment_no]) {
+        maintByEq[m.equipment_no] = mdate
       }
     })
     const dueList: any[] = []
@@ -553,11 +595,20 @@ export default function DashboardPage() {
   const totalCount = allTodos.length + customTodos.length
   const selectedImarking = getImarkingSchedule(selectedDateObj)
 
+  const periodLabelMap: Record<KpiPeriod, string> = {
+    today: '오늘',
+    week: '이번 주',
+    month: '이번 달',
+    '30days': '최근 30일',
+    all: '전체',
+  }
+  const pLabel = periodLabelMap[kpiPeriod]
+
   const kpiCards = [
     { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)', icon: '🏭' },
-    { label: '이번 달 알람', value: stats.alarm, unit: '건', color: 'var(--accent-amber)', icon: '🔔', warn: stats.alarm >= 20 },
-    { label: '정비이력', value: stats.maintenance, unit: '건', color: 'var(--accent-teal)', icon: '🔧' },
-    { label: '찍힘 건수', value: stats.scratch, unit: '건', color: 'var(--accent-green)', icon: '🔍' },
+    { label: `${pLabel} 알람`, value: stats.alarm, unit: '건', color: 'var(--accent-amber)', icon: '🔔', warn: stats.alarm >= 20 },
+    { label: `${pLabel} 정비이력`, value: stats.maintenance, unit: '건', color: 'var(--accent-teal)', icon: '🔧' },
+    { label: `${pLabel} 찍힘`, value: stats.scratch, unit: '건', color: 'var(--accent-green)', icon: '🔍' },
   ]
 
   return (
@@ -598,6 +649,38 @@ export default function DashboardPage() {
         </div>
 
         <div className="content-area">
+          {/* KPI 기간 필터 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>기간:</span>
+            <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', padding: 3, borderRadius: 6, border: '1px solid var(--border)' }}>
+              {[
+                { key: 'today' as const, label: '오늘' },
+                { key: 'week' as const, label: '이번 주' },
+                { key: 'month' as const, label: '이번 달' },
+                { key: '30days' as const, label: '최근 30일' },
+                { key: 'all' as const, label: '전체' },
+              ].map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setKpiPeriod(opt.key)}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: kpiPeriod === opt.key ? 'var(--accent-blue)' : 'transparent',
+                    color: kpiPeriod === opt.key ? 'white' : 'var(--text-secondary)',
+                    fontWeight: kpiPeriod === opt.key ? 600 : 400,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
             {kpiCards.map((k: any) => (
               <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
