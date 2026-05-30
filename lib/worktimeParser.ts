@@ -10,10 +10,21 @@ export interface WorktimeRecord {
   in_time: string | null
   out_time: string | null
   work_hours: number | null
+  overtime_minutes: number
   shift_type: string | null
   is_holiday: boolean
   is_overtime: boolean
   note: string | null
+}
+
+// 분 → "X시간 Y분" 표시 헬퍼
+export function formatMinutes(min: number): string {
+  if (!min || min <= 0) return '0분'
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h > 0 && m > 0) return `${h}시간 ${m}분`
+  if (h > 0) return `${h}시간`
+  return `${m}분`
 }
 
 const KNOWN_STAFF = ['이동주', '이수열', '정수연', '차상정']
@@ -60,21 +71,16 @@ function formatTime(raw: any): string | null {
 }
 
 function calculateWorkHours(inTime: string | null, outTime: string | null): { hours: number | null; shiftType: string | null } {
-  if (!inTime || !outTime) return { hours: null, shiftType: null }
-  const [inH, inM] = inTime.split(':').map(Number)
-  const [outH, outM] = outTime.split(':').map(Number)
-  let inMinutes = inH * 60 + inM
-  let outMinutes = outH * 60 + outM
-  // 야간 근무 보정: 퇴근(ex. 05:00)이 출근(ex. 20:00)보다 작으면 자정을 넘긴 것
-  if (outMinutes < inMinutes) outMinutes += 24 * 60
-  const diffMinutes = outMinutes - inMinutes
-  // 점심 1시간 차감: 주간/야간 동일 적용 (사내 규정, 주간=점심 야간=저녁)
-  const workMinutes = diffMinutes - 60
-  if (workMinutes <= 0) return { hours: 0, shiftType: null }
-  const hours = Math.round((workMinutes / 60) * 100) / 100
+  // 개선 로직: 출근 기록이 있으면 기본 근무 8시간 고정 (주/야간 무관)
+  //           출근 기록이 없으면 0시간 (결근/미출근)
+  //           잔업은 별도로 관리자가 입력 (overtime_minutes)
+  if (!inTime) return { hours: 0, shiftType: null }
+
+  const [inH] = inTime.split(':').map(Number)
   // 출근 12시 이전이면 주간, 이후면 야간 (보전반 교대 기준: 주간 08시 / 야간 20시)
   const shiftType = inH < 12 ? '주간' : '야간'
-  return { hours, shiftType }
+  // 기본 근무시간은 8시간 고정
+  return { hours: 8, shiftType }
 }
 
 function isOvertime(outTime: string | null, shiftType: string | null): boolean {
@@ -149,6 +155,7 @@ async function parseErpHtml(file: File, year: number, month: number): Promise<Wo
       in_time: inTime,
       out_time: outTime,
       work_hours: hours,
+      overtime_minutes: 0,
       shift_type: shiftType,
       is_holiday: huil === 'Y',
       is_overtime: overtime,
@@ -216,6 +223,7 @@ async function parseErpExcelFile(file: File, year: number, month: number): Promi
       in_time: inTime,
       out_time: outTime,
       work_hours: hours,
+      overtime_minutes: 0,
       shift_type: shiftType,
       is_holiday: huil === 'Y',
       is_overtime: overtime,
@@ -273,7 +281,10 @@ export function predictWeeklyHours(
   const weekRecords = records.filter(r => r.date >= weekStart && r.date <= weekEnd)
   const workedRecords = weekRecords.filter(r => r.work_hours && r.work_hours > 0 && r.date <= todayStr)
 
-  const currentTotal = workedRecords.reduce((sum, r) => sum + (r.work_hours || 0), 0)
+  // 기본 근무시간(8h 고정) 합계 + 잔업(분→시간) 합계
+  const baseTotal = workedRecords.reduce((sum, r) => sum + (r.work_hours || 0), 0)
+  const overtimeTotal = workedRecords.reduce((sum, r) => sum + ((r.overtime_minutes || 0) / 60), 0)
+  const currentTotal = baseTotal + overtimeTotal
   const daysWorked = workedRecords.length
 
   const end = new Date(weekEnd)
