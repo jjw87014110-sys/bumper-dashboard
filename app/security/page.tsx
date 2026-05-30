@@ -20,7 +20,7 @@ export default function SecurityPage() {
   const [users, setUsers] = useState<any[]>([])
   const [userModal, setUserModal] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
-  const [userForm, setUserForm] = useState({ user_id: '', password: '', pin: '0515', name: '', role: 'user', department: '생산기술' })
+  const [userForm, setUserForm] = useState({ user_id: '', password: '', pin: '0515', name: '', role: 'user', department: '생산기술', position: 'PM' })
   // 접속 로그
   const [logs, setLogs] = useState<any[]>([])
   // 세션 정보
@@ -163,27 +163,28 @@ export default function SecurityPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
               <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>👥 사용자 관리</div>
-                <button className="btn btn-primary btn-sm" onClick={() => { setEditUser(null); setUserForm({ user_id:'', password:'', pin:'0515', name:'', role:'user', department:'생산기술' }); setUserModal(true) }}>+ 사용자 추가</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { setEditUser(null); setUserForm({ user_id:'', password:'', pin:'0515', name:'', role:'user', department:'생산기술', position:'PM' }); setUserModal(true) }}>+ 사용자 추가</button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    {['아이디','이름','부서','권한','상태','관리'].map(h => <th key={h} style={th}>{h}</th>)}
+                    {['아이디','이름','부서','직책','권한','상태','관리'].map(h => <th key={h} style={th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>등록된 사용자 없음</td></tr>
+                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>등록된 사용자 없음</td></tr>
                   ) : users.map(u => (
                     <tr key={u.id}>
                       <td style={td}>{u.user_id}</td>
                       <td style={td}>{u.name}</td>
                       <td style={td}>{u.department}</td>
+                      <td style={td}>{u.position || '-'}</td>
                       <td style={td}><span className={`badge ${u.role === 'admin' ? 'badge-red' : 'badge-blue'}`}>{u.role === 'admin' ? '관리자' : '일반'}</span></td>
                       <td style={td}><span className={`badge ${u.is_active ? 'badge-green' : 'badge-gray'}`}>{u.is_active ? '활성' : '비활성'}</span></td>
                       <td style={td}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:u.password, pin:u.pin, name:u.name, role:u.role, department:u.department }); setUserModal(true) }}>수정</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:u.password, pin:u.pin, name:u.name, role:u.role, department:u.department, position:u.position || 'PM' }); setUserModal(true) }}>수정</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => handleUserToggle(u)}>{u.is_active ? '비활성' : '활성'}</button>
                         </div>
                       </td>
@@ -256,6 +257,14 @@ export default function SecurityPage() {
               <div className="form-group">
                 <label className="form-label">부서</label>
                 <input className="form-input" value={userForm.department} onChange={e => setUserForm({ ...userForm, department: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">직책</label>
+                <select className="form-select" value={userForm.position} onChange={e => setUserForm({ ...userForm, position: e.target.value })}>
+                  <option value="PM">매니저 (PM)</option>
+                  <option value="TJ">팀장 (TJ)</option>
+                  <option value="EX">임원 (EX)</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">권한</label>
