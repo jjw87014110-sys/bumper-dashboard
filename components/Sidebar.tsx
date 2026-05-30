@@ -59,7 +59,7 @@ function Icon({ name }: { name: string }) {
 
 export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const path = usePathname()
-  const { logout, lock, userRole } = useAuth()
+  const { logout, lock, userRole, userName, userDept, userPosition } = useAuth()
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [alarmCount, setAlarmCount] = useState(0)
 
@@ -167,10 +167,12 @@ export default function Sidebar({ mobileOpen, onMobileClose }: { mobileOpen?: bo
             background: 'var(--accent-blue-dim)', border: '1px solid var(--accent-blue)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 10, fontWeight: 700, color: 'var(--accent-blue)'
-          }}>정</div>
+          }}>{(userName || '?').charAt(0)}</div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 500 }}>정상협 PM</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>생산기술</div>
+            <div style={{ fontSize: 11, fontWeight: 500 }}>
+              {userName || '사용자'}{userPosition ? ` ${userPosition}` : ''}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{userDept || '-'}</div>
           </div>
         </div>
         <button
