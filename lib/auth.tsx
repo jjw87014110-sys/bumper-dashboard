@@ -11,17 +11,21 @@ const KEYS = {
   expire: 'bumper_expire',
   role: 'bumper_role',
   name: 'bumper_name',
+  dept: 'bumper_dept',
+  position: 'bumper_position',
 } as const
 
 // 8시간 세션: 출근~퇴근 동안 재로그인 불필요
 const SESSION_DURATION = 8 * 60 * 60 * 1000
 
 // localStorage 일괄 저장/삭제 (3곳에서 중복되던 로직 통합)
-function saveSession(role: string, name: string) {
+function saveSession(role: string, name: string, dept?: string, position?: string) {
   localStorage.setItem(KEYS.session, 'ok')
   localStorage.setItem(KEYS.expire, String(Date.now() + SESSION_DURATION))
   localStorage.setItem(KEYS.role, role)
   localStorage.setItem(KEYS.name, name)
+  localStorage.setItem(KEYS.dept, dept || '')
+  localStorage.setItem(KEYS.position, position || '')
 }
 
 function clearSession() {
@@ -34,6 +38,8 @@ interface AuthCtx {
   isLocked: boolean
   userRole: 'admin' | 'user' | null
   userName: string | null
+  userDept: string | null
+  userPosition: string | null
   login: (id: string, pw: string) => Promise<boolean>
   verifyPin: (pin: string) => Promise<boolean>
   lock: () => void
@@ -49,6 +55,8 @@ const AuthContext = createContext<AuthCtx>({
   isLocked: false,
   userRole: null,
   userName: null,
+  userDept: null,
+  userPosition: null,
   login: async () => false,
   verifyPin: async () => false,
   lock: () => {},
@@ -64,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLocked, setIsLocked] = useState(false)
   const [userRole, setUserRole] = useState<'admin' | 'user' | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [userDept, setUserDept] = useState<string | null>(null)
+  const [userPosition, setUserPosition] = useState<string | null>(null)
   const router = useRouter()
 
   // 페이지 로드 시 세션 복원
@@ -79,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const n = localStorage.getItem(KEYS.name)
     if (r) setUserRole(r)
     if (n) setUserName(n)
+    setUserDept(localStorage.getItem(KEYS.dept) || null)
+    setUserPosition(localStorage.getItem(KEYS.position) || null)
     // 잠금 상태 복원 (sessionStorage — 탭 새로고침해도 유지, 탭 닫으면 사라짐)
     if (sessionStorage.getItem('bumper_locked') === '1') setIsLocked(true)
   }, [])
@@ -121,10 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       const role = data.role || 'user'
       const name = data.name || id
-      saveSession(role, name)
+      const dept = data.department || ''
+      const position = data.position || ''
+      saveSession(role, name, dept, position)
       setIsLoggedIn(true)
       setUserRole(role)
       setUserName(name)
+      setUserDept(dept)
+      setUserPosition(position)
       return true
     }
 
@@ -132,10 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const envId = process.env.NEXT_PUBLIC_ADMIN_ID || '103613'
     const envPw = process.env.NEXT_PUBLIC_ADMIN_PW || '103613'
     if (id === envId && pw === envPw) {
-      saveSession('admin', '관리자')
+      saveSession('admin', '관리자', '생산기술', 'PM')
       setIsLoggedIn(true)
       setUserRole('admin')
       setUserName('관리자')
+      setUserDept('생산기술')
+      setUserPosition('PM')
       return true
     }
 
@@ -191,6 +209,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLocked(false)
     setUserRole(null)
     setUserName(null)
+    setUserDept(null)
+    setUserPosition(null)
     router.push('/login')
   }
 
@@ -205,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isPinVerified, isLocked, userRole, userName, login, verifyPin, lock, unlock, logout, changePassword, changePin }}>
+    <AuthContext.Provider value={{ isLoggedIn, isPinVerified, isLocked, userRole, userName, userDept, userPosition, login, verifyPin, lock, unlock, logout, changePassword, changePin }}>
       {children}
       {isLocked && isLoggedIn && <LockScreen onUnlock={unlock} />}
     </AuthContext.Provider>
