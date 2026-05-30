@@ -169,7 +169,8 @@ const DAILY_TODOS = [
 const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
 
 export default function DashboardPage() {
-  useRequireAuth()
+  const { userRole } = useRequireAuth()
+  const isAdmin = userRole === 'admin'
   const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
   const [equipByType, setEquipByType] = useState<any>({})
   const [loading, setLoading] = useState(true)
@@ -733,9 +734,10 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAdmin ? '280px 1fr' : '1fr', gap:16 }}>
             {/* TO DO */}
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              {isAdmin && (
               <div className="card" style={{ padding:0, overflow:'hidden' }}>
                 <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                   <div>
@@ -791,6 +793,7 @@ export default function DashboardPage() {
                   {!isToday && <div style={{ fontSize:10, color:'var(--accent-amber)', marginTop:6, textAlign:'center' }}>과거 날짜 — 체크 불가 (읽기 전용)</div>}
                 </div>
               </div>
+              )}
 
               <div className="card">
                 <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>설비 유형 분포</div>
@@ -884,6 +887,7 @@ export default function DashboardPage() {
             </div>
 
             {/* 달력 */}
+            {isAdmin && (
             <div className="card" style={{ padding:0, overflow:'hidden' }}>
               <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{calYear}년 {calMonth+1}월</div>
@@ -969,6 +973,7 @@ export default function DashboardPage() {
                 <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>드래그=일정 이동</div>
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>
