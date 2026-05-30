@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import LockScreen from '@/components/LockScreen'
+import { verifyPassword, hashPassword, isHashed } from '@/lib/passwordHash'
 
 // localStorage 키 상수
 const KEYS = {
@@ -122,26 +123,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLoggedIn, isPinVerified])
 
   const login = async (id: string, pw: string) => {
+    // user_id로만 조회 (비번은 아래에서 해시 검증)
     const { data } = await supabase
       .from('users')
       .select('*')
       .eq('user_id', id)
-      .eq('password', pw)
       .eq('is_active', true)
       .single()
 
     if (data) {
-      const role = data.role || 'user'
-      const name = data.name || id
-      const dept = data.department || ''
-      const position = data.position || ''
-      saveSession(role, name, dept, position)
-      setIsLoggedIn(true)
-      setUserRole(role)
-      setUserName(name)
-      setUserDept(dept)
-      setUserPosition(position)
-      return true
+      // 평문/해시 모두 처리하는 검증
+      const pwOk = await verifyPassword(pw, data.password || '')
+      if (pwOk) {
+        // 자동 마이그레이션: 저장된 비번이 아직 평문이면 해시로 업그레이드
+        if (!isHashed(data.password || '')) {
+          try {
+            const hashed = await hashPassword(pw)
+            await supabase.from('users').update({ password: hashed }).eq('id', data.id)
+          } catch {}
+        }
+        const role = data.role || 'user'
+        const name = data.name || id
+        const dept = data.department || ''
+        const position = data.position || ''
+        saveSession(role, name, dept, position)
+        setIsLoggedIn(true)
+        setUserRole(role)
+        setUserName(name)
+        setUserDept(dept)
+        setUserPosition(position)
+        return true
+      }
     }
 
     // DB 실패 시 환경변수 fallback (초기 설정용 · DB에 사용자 등록 전)
@@ -187,10 +199,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const name = localStorage.getItem(KEYS.name) || ''
     const { data } = await supabase.from('users').select('*').eq('name', name).single()
     if (!data) return { ok: false, msg: '사용자 정보를 찾을 수 없습니다' }
-    if (data[field] !== oldValue) return { ok: false, msg: field === 'password' ? '현재 비밀번호가 올바르지 않습니다' : '현재 PIN이 올바르지 않습니다' }
+
+    // 현재 값 검증 — 비밀번호는 해시 검증, PIN은 평문 비교
+    if (field === 'password') {
+      const ok = await verifyPassword(oldValue, data.password || '')
+      if (!ok) return { ok: false, msg: '현재 비밀번호가 올바르지 않습니다' }
+    } else {
+      if (data[field] !== oldValue) return { ok: false, msg: '현재 PIN이 올바르지 않습니다' }
+    }
+
     const validationError = validate(newValue)
     if (validationError) return { ok: false, msg: validationError }
-    const { error } = await supabase.from('users').update({ [field]: newValue, updated_at: new Date().toISOString() }).eq('id', data.id)
+
+    // 비밀번호는 해싱해서 저장, PIN은 평문 저장
+    const valueToStore = field === 'password' ? await hashPassword(newValue) : newValue
+    const { error } = await supabase.from('users').update({ [field]: valueToStore, updated_at: new Date().toISOString() }).eq('id', data.id)
     if (error) return { ok: false, msg: '변경 실패: ' + error.message }
     return { ok: true, msg: field === 'password' ? '비밀번호가 변경되었습니다' : 'PIN이 변경되었습니다' }
   }
