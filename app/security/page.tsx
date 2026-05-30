@@ -18,6 +18,7 @@ export default function SecurityPage() {
   const [confirmPin, setConfirmPin] = useState('')
   // 사용자 관리 (admin only)
   const [users, setUsers] = useState<any[]>([])
+  const [userSearch, setUserSearch] = useState('')
   const [userModal, setUserModal] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
   const [userForm, setUserForm] = useState({ user_id: '', password: '', pin: '0515', name: '', role: 'user', department: '생산기술', position: 'PM' })
@@ -64,12 +65,25 @@ export default function SecurityPage() {
   }
 
   async function handleUserSave() {
-    if (!userForm.user_id || !userForm.name || !userForm.password) { showToast('필수 항목을 입력하세요', 'error'); return }
+    if (!userForm.user_id || !userForm.name) { showToast('아이디와 이름은 필수입니다', 'error'); return }
+    // 신규 등록 시에만 비번 필수
+    if (!editUser && !userForm.password) { showToast('비밀번호를 입력하세요', 'error'); return }
+
     if (editUser) {
-      const { error } = await supabase.from('users').update({ ...userForm, updated_at: new Date().toISOString() }).eq('id', editUser.id)
+      // 비번 비워두면 기존 유지, 입력하면 변경
+      const updatePayload: any = {
+        name: userForm.name, role: userForm.role,
+        department: userForm.department, position: userForm.position,
+        pin: userForm.pin, updated_at: new Date().toISOString(),
+      }
+      if (userForm.password) updatePayload.password = userForm.password
+      const { error } = await supabase.from('users').update(updatePayload).eq('id', editUser.id)
       if (error) { showToast('수정 실패', 'error'); return }
       showToast('수정 완료')
     } else {
+      // 중복 ID 체크
+      const { data: dup } = await supabase.from('users').select('id').eq('user_id', userForm.user_id).maybeSingle()
+      if (dup) { showToast('이미 존재하는 아이디입니다', 'error'); return }
       const { error } = await supabase.from('users').insert([userForm])
       if (error) { showToast('등록 실패: ' + error.message, 'error'); return }
       showToast('등록 완료')
@@ -82,8 +96,25 @@ export default function SecurityPage() {
     fetchUsers()
   }
 
+  async function handleUserDelete(user: any) {
+    if (user.role === 'admin') { showToast('관리자 계정은 삭제할 수 없습니다', 'error'); return }
+    if (!confirm(`"${user.name}(${user.user_id})" 계정을 영구 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+    const { error } = await supabase.from('users').delete().eq('id', user.id)
+    if (error) { showToast('삭제 실패: ' + error.message, 'error'); return }
+    showToast('삭제되었습니다')
+    fetchUsers()
+  }
+
   const th: React.CSSProperties = { fontSize: 10, padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'left' }
   const td: React.CSSProperties = { fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }
+
+  const filteredUsers = users.filter(u => {
+    if (!userSearch.trim()) return true
+    const q = userSearch.toLowerCase()
+    return (u.name||'').toLowerCase().includes(q)
+      || (u.user_id||'').toLowerCase().includes(q)
+      || (u.department||'').toLowerCase().includes(q)
+  })
 
   return (
     <div className="page-container">
@@ -161,9 +192,12 @@ export default function SecurityPage() {
           {/* 사용자 관리 (admin only) */}
           {userRole === 'admin' && (
             <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>👥 사용자 관리</div>
-                <button className="btn btn-primary btn-sm" onClick={() => { setEditUser(null); setUserForm({ user_id:'', password:'', pin:'0515', name:'', role:'user', department:'생산기술', position:'PM' }); setUserModal(true) }}>+ 사용자 추가</button>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>👥 사용자 관리 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>({filteredUsers.length}명)</span></div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input className="form-input" placeholder="이름/아이디/부서 검색..." value={userSearch} onChange={e => setUserSearch(e.target.value)} style={{ fontSize: 11, padding: '5px 10px', width: 180 }} />
+                  <button className="btn btn-primary btn-sm" onClick={() => { setEditUser(null); setUserForm({ user_id:'', password:'', pin:'0515', name:'', role:'user', department:'생산기술', position:'PM' }); setUserModal(true) }}>+ 사용자 추가</button>
+                </div>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -172,9 +206,9 @@ export default function SecurityPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.length === 0 ? (
-                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>등록된 사용자 없음</td></tr>
-                  ) : users.map(u => (
+                  {filteredUsers.length === 0 ? (
+                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)' }}>{userSearch ? '검색 결과 없음' : '등록된 사용자 없음'}</td></tr>
+                  ) : filteredUsers.map(u => (
                     <tr key={u.id}>
                       <td style={td}>{u.user_id}</td>
                       <td style={td}>{u.name}</td>
@@ -184,8 +218,11 @@ export default function SecurityPage() {
                       <td style={td}><span className={`badge ${u.is_active ? 'badge-green' : 'badge-gray'}`}>{u.is_active ? '활성' : '비활성'}</span></td>
                       <td style={td}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:u.password, pin:u.pin, name:u.name, role:u.role, department:u.department, position:u.position || 'PM' }); setUserModal(true) }}>수정</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => { setEditUser(u); setUserForm({ user_id:u.user_id, password:'', pin:u.pin, name:u.name, role:u.role, department:u.department, position:u.position || 'PM' }); setUserModal(true) }}>수정</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => handleUserToggle(u)}>{u.is_active ? '비활성' : '활성'}</button>
+                          {u.role !== 'admin' && (
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleUserDelete(u)}>삭제</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -247,8 +284,8 @@ export default function SecurityPage() {
                 <input className="form-input" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">비밀번호 *</label>
-                <input className="form-input" type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} />
+                <label className="form-label">{editUser ? '비밀번호 (변경 시에만 입력)' : '비밀번호 *'}</label>
+                <input className="form-input" type="password" placeholder={editUser ? '비워두면 기존 비밀번호 유지' : ''} value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} />
               </div>
               <div className="form-group">
                 <label className="form-label">PIN (4자리)</label>
