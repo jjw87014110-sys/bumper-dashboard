@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRequireAdmin } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { hashPassword } from '@/lib/passwordHash'
 import Sidebar from '@/components/Sidebar'
 
 export default function SecurityPage() {
@@ -70,13 +71,13 @@ export default function SecurityPage() {
     if (!editUser && !userForm.password) { showToast('비밀번호를 입력하세요', 'error'); return }
 
     if (editUser) {
-      // 비번 비워두면 기존 유지, 입력하면 변경
+      // 비번 비워두면 기존 유지, 입력하면 변경 (해싱해서 저장)
       const updatePayload: any = {
         name: userForm.name, role: userForm.role,
         department: userForm.department, position: userForm.position,
         pin: userForm.pin, updated_at: new Date().toISOString(),
       }
-      if (userForm.password) updatePayload.password = userForm.password
+      if (userForm.password) updatePayload.password = await hashPassword(userForm.password)
       const { error } = await supabase.from('users').update(updatePayload).eq('id', editUser.id)
       if (error) { showToast('수정 실패', 'error'); return }
       showToast('수정 완료')
@@ -84,7 +85,9 @@ export default function SecurityPage() {
       // 중복 ID 체크
       const { data: dup } = await supabase.from('users').select('id').eq('user_id', userForm.user_id).maybeSingle()
       if (dup) { showToast('이미 존재하는 아이디입니다', 'error'); return }
-      const { error } = await supabase.from('users').insert([userForm])
+      // 신규 등록 — 비번 해싱
+      const newUser = { ...userForm, password: await hashPassword(userForm.password) }
+      const { error } = await supabase.from('users').insert([newUser])
       if (error) { showToast('등록 실패: ' + error.message, 'error'); return }
       showToast('등록 완료')
     }
