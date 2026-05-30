@@ -225,3 +225,17 @@ export function useRequireAuth() {
   }, [ctx.isPinVerified, router])
   return ctx
 }
+
+// admin 전용 페이지에서 사용 — 미인증 시 로그인, admin 아니면 대시보드로
+export function useRequireAdmin() {
+  const ctx = useContext(AuthContext)
+  const router = useRouter()
+  useEffect(() => {
+    if (!ctx.isPinVerified) {
+      router.push('/login')
+    } else if (ctx.userRole !== 'admin') {
+      router.push('/dashboard')
+    }
+  }, [ctx.isPinVerified, ctx.userRole, router])
+  return ctx
+}
