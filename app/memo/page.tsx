@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRequireAuth } from '@/lib/auth'
+import { useRequireAdmin } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function MemoPage() {
-  useRequireAuth()
+  useRequireAdmin()
   const [memos, setMemos] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(true)
