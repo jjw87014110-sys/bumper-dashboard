@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRequireAuth } from '@/lib/auth'
+import { useRequireAdmin } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 export default function SecurityPage() {
-  const { userRole, userName, changePassword, changePin } = useRequireAuth()
+  const { userRole, userName, changePassword, changePin } = useRequireAdmin()
 
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   // 비밀번호 변경
