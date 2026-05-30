@@ -72,6 +72,8 @@ export default function WorktimePage() {
   const [weekStart, setWeekStart] = useState(thisWeekStart)
   const [weekEnd, setWeekEnd] = useState(thisWeekEnd)
   const [expandedStaff, setExpandedStaff] = useState<string | null>(null)
+  // 잔업 입력 임시값 { "staffName|date": 분 }
+  const [overtimeEdits, setOvertimeEdits] = useState<Record<string, string>>({})
 
   useEffect(() => { fetchAll() }, [])
 
@@ -107,6 +109,20 @@ export default function WorktimePage() {
     return { over, warning, normal }
   }, [staffStats])
 
+  // 잔업시간(분) 저장 — 관리자 수동 입력
+  async function saveOvertime(staffName: string, date: string, minutes: number) {
+    const safe = Math.max(0, Math.round(minutes / 10) * 10) // 10분 단위 보정
+    const { error } = await supabase
+      .from('worktime_records')
+      .update({ overtime_minutes: safe })
+      .eq('staff_name', staffName)
+      .eq('date', date)
+    if (error) { showToast('잔업 저장 실패', 'error'); return }
+    showToast('잔업시간 저장됨')
+    logAudit(getCurrentUserName(), 'UPDATE', 'worktime_records', `${staffName} ${date} 잔업 ${safe}분`)
+    fetchAll()
+  }
+
   function changeWeek(direction: -1 | 0 | 1) {
     setExpandedStaff(null)
     if (direction === 0) {
@@ -140,9 +156,11 @@ export default function WorktimePage() {
           errors.push(`${file.name}: 데이터 없음`)
           continue
         }
+        // 잔업(overtime_minutes)은 관리자 수동 입력값이므로 ERP 재업로드 시 덮어쓰지 않음
+        const recordsNoOvertime = records.map(({ overtime_minutes, ...rest }) => rest)
         const { error } = await supabase
           .from('worktime_records')
-          .upsert(records, { onConflict: 'staff_name,date' })
+          .upsert(recordsNoOvertime, { onConflict: 'staff_name,date' })
         if (error) {
           errors.push(`${file.name}: ${error.message}`)
         } else {
@@ -481,7 +499,7 @@ export default function WorktimePage() {
                             <span style={{ fontSize: 10, opacity: 0.8 }}>{weekStart} ~ {weekEnd}</span>
                           </div>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
+                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업(분)'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                             <tbody>
                               {weekDates.map((d, i) => {
                                 const rec = weekRecords.find(r => r.staff_name === staff.name && r.date === d)
@@ -494,10 +512,28 @@ export default function WorktimePage() {
                                     <td className="tbl-td">{rec?.in_time || '-'}</td>
                                     <td className="tbl-td">{rec?.out_time || '-'}</td>
                                     <td className="tbl-td" style={{ fontWeight: 700, color: (rec?.work_hours || 0) >= 11 ? 'var(--accent-red)' : (rec?.work_hours || 0) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
-                                      {rec?.work_hours ? `${rec.work_hours.toFixed(1)}h` : '-'}
+                                      {rec?.work_hours ? `${(rec.work_hours + (rec.overtime_minutes || 0) / 60).toFixed(1)}h` : '-'}
                                     </td>
                                     <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
-                                    <td className="tbl-td">{rec?.is_overtime ? <span style={{ color: 'var(--accent-red)', fontSize: 12 }}>●</span> : ''}</td>
+                                    <td className="tbl-td">
+                                      {rec?.work_hours ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            step={10}
+                                            value={overtimeEdits[`${staff.name}|${d}`] ?? String(rec.overtime_minutes || 0)}
+                                            onChange={e => setOvertimeEdits({ ...overtimeEdits, [`${staff.name}|${d}`]: e.target.value })}
+                                            onBlur={e => {
+                                              const v = Number(e.target.value) || 0
+                                              if (v !== (rec.overtime_minutes || 0)) saveOvertime(staff.name, d, v)
+                                            }}
+                                            style={{ width: 52, fontSize: 11, padding: '2px 4px', textAlign: 'center', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                          />
+                                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>분</span>
+                                        </div>
+                                      ) : '-'}
+                                    </td>
                                   </tr>
                                 )
                               })}
