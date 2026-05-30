@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRequireAuth } from '@/lib/auth'
+import { useRequireAdmin } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
@@ -22,7 +22,7 @@ const TABLES = [
 ]
 
 export default function BackupPage() {
-  useRequireAuth()
+  useRequireAdmin()
 
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
