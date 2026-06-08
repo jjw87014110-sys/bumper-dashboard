@@ -131,7 +131,7 @@ export default function MaterialsPage() {
                       <thead><tr>{['No','품목명','규격','MAKER','단위','수량','최소','상태','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
                       <tbody>{data.map(r => {
                         const minQ = r.min_quantity || 0
-                        const isLow = minQ > 0 && r.quantity <= minQ
+                        const isLow = minQ > 0 && r.quantity < minQ
                         return (
                         <tr key={r.id} style={isLow ? { background: 'var(--accent-red-dim)' } : {}}>
                           <td className="tbl-td">{r.item_no}</td>
