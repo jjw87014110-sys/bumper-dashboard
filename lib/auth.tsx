@@ -156,19 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // DB 실패 시 환경변수 fallback (초기 설정용 · DB에 사용자 등록 전)
-    const envId = process.env.NEXT_PUBLIC_ADMIN_ID || '103613'
-    const envPw = process.env.NEXT_PUBLIC_ADMIN_PW || '103613'
-    if (id === envId && pw === envPw) {
-      saveSession('admin', '관리자', '생산기술', 'PM')
-      setIsLoggedIn(true)
-      setUserRole('admin')
-      setUserName('관리자')
-      setUserDept('생산기술')
-      setUserPosition('PM')
-      return true
-    }
-
     return false
   }
 
