@@ -16,6 +16,7 @@ type Project = {
   history: HistoryItem[]
   next_plan: HistoryItem[]
   start_date: string | null
+  deadline: string | null
   completed_date: string | null
   updated_at: string
 }
@@ -29,6 +30,17 @@ const STATUS_COLORS: Record<string, string> = {
   '진행중': 'badge-blue',
   '완료': 'badge-green',
   '보류': 'badge-gray',
+}
+
+function getDday(deadline: string | null): { label: string; color: string } | null {
+  if (!deadline) return null
+  const today = new Date(); today.setHours(0,0,0,0)
+  const due = new Date(deadline); due.setHours(0,0,0,0)
+  const diff = Math.round((due.getTime() - today.getTime()) / 86400000)
+  if (diff < 0) return { label: `D+${Math.abs(diff)}`, color: 'var(--accent-red)' }
+  if (diff === 0) return { label: 'D-day', color: 'var(--accent-red)' }
+  if (diff <= 7) return { label: `D-${diff}`, color: 'var(--accent-amber)' }
+  return { label: `D-${diff}`, color: 'var(--text-muted)' }
 }
 
 // "6/7", "2026-06-07" 등 다양한 날짜 표기를 Date로 파싱
@@ -83,7 +95,7 @@ export default function ProjectsPage() {
   const [form, setForm] = useState<any>({
     title: '', category: '', car_model: '', equipment_type: '',
     status: '진행중', history: [] as HistoryItem[], next_plan: [] as HistoryItem[],
-    start_date: '', completed_date: '',
+    start_date: '', deadline: '', completed_date: '',
   })
   const [newHistDate, setNewHistDate] = useState('')
   const [newHistContent, setNewHistContent] = useState('')
@@ -104,7 +116,7 @@ export default function ProjectsPage() {
     setForm({
       title: '', category: '', car_model: '', equipment_type: '',
       status: '진행중', history: [], next_plan: [],
-      start_date: new Date().toISOString().slice(0, 10), completed_date: '',
+      start_date: new Date().toISOString().slice(0, 10), deadline: '', completed_date: '',
     })
     setNewHistDate(''); setNewHistContent('')
     setNewPlanDate(''); setNewPlanContent('')
@@ -122,6 +134,7 @@ export default function ProjectsPage() {
       history: Array.isArray(p.history) ? p.history : [],
       next_plan: Array.isArray(p.next_plan) ? p.next_plan : [],
       start_date: p.start_date || '',
+      deadline: p.deadline || '',
       completed_date: p.completed_date || '',
     })
     setNewHistDate(''); setNewHistContent('')
@@ -160,6 +173,7 @@ export default function ProjectsPage() {
       history: form.history,
       next_plan: form.next_plan,
       start_date: form.start_date || null,
+      deadline: form.deadline || null,
       completed_date: form.completed_date || null,
       updated_at: new Date().toISOString(),
     }
@@ -281,12 +295,14 @@ export default function ProjectsPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{p.title}</div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span className={`badge ${STATUS_COLORS[p.status] || 'badge-gray'}`}>{p.status}</span>
                         {p.car_model && <span className="badge badge-gray" style={{ fontSize: 9 }}>{p.car_model}</span>}
                         {p.equipment_type && <span className="badge badge-amber" style={{ fontSize: 9 }}>{p.equipment_type}</span>}
                         {p.category && <span className="badge badge-purple" style={{ fontSize: 9 }}>{p.category}</span>}
+                        {(() => { const dd = getDday(p.deadline); return dd ? <span style={{ fontSize: 10, fontWeight: 700, color: dd.color, marginLeft: 2 }}>{dd.label}</span> : null })()}
                       </div>
+                      {p.deadline && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>📅 마감 {p.deadline}</div>}
                     </div>
                   </div>
 
@@ -409,6 +425,10 @@ export default function ProjectsPage() {
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>시작일</label>
                   <input type="date" className="form-input" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>마감일 (D-day 기준)</label>
+                  <input type="date" className="form-input" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>완료일</label>
