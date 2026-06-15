@@ -338,6 +338,7 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
   const [activeTab, setActiveTab] = useState('')
   const [tabData, setTabData] = useState<any[]>([])
   const [tabLoading, setTabLoading] = useState(false)
+  const [summary, setSummary] = useState<{ alarm: number; scratch: number; maintenance: number; lastMaint: string } | null>(null)
 
   const isJig = r.type === '지그'
   const isSP2 = r.model === 'SP2'
@@ -349,6 +350,19 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
     setOpen(true)
     setActiveTab(firstTab)
     setTabLoading(true)
+
+    // 요약 카드용 데이터 병렬 로드
+    const now = new Date()
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+    const [alarmRows, scratchRows, maintRows] = await Promise.all([
+      supabase.from('alarm').select('punch_alarm, weld_alarm').eq('equipment_no', r.no).gte('date', monthStart),
+      supabase.from('scratch').select('id').eq('equipment_no', r.no).gte('date', monthStart),
+      supabase.from('maintenance').select('maintenance_date').eq('equipment_no', r.no).order('maintenance_date', { ascending: false }).limit(1),
+    ])
+    const totalAlarm = (alarmRows.data || []).reduce((s: number, row: any) => s + (row.punch_alarm||0) + (row.weld_alarm||0), 0)
+    const lastMaint = maintRows.data?.[0]?.maintenance_date ? String(maintRows.data[0].maintenance_date).slice(0, 10) : '-'
+    setSummary({ alarm: totalAlarm, scratch: (scratchRows.data || []).length, maintenance: (maintRows.data || []).length, lastMaint })
+
     const rows = await loadTab(firstTab, r.no)
     setTabData(rows)
     setTabLoading(false)
@@ -388,6 +402,25 @@ function EquipmentRow({ r, typeColors, rrColors }: { r: any; typeColors: any; rr
         <tr>
           <td colSpan={8} style={{ padding: 0, background: 'var(--bg-secondary)' }}>
             <div style={{ borderTop: '2px solid var(--accent-blue)' }}>
+
+              {/* 요약 카드 */}
+              {summary && (
+                <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', marginRight: 4 }}>이번 달</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: 'var(--accent-amber-dim)', borderRadius: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--accent-amber)' }}>알람</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-amber)' }}>{summary.alarm}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: 'var(--accent-blue-dim)', borderRadius: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--accent-blue)' }}>찍힘</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>{summary.scratch}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: 'var(--accent-teal-dim, var(--bg-hover))', borderRadius: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--accent-teal)' }}>최근 정비</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-teal)' }}>{summary.lastMaint}</span>
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
                 {tabs.map(tab => (
                   <button key={tab} onClick={e => { e.stopPropagation(); handleTab(tab) }}
