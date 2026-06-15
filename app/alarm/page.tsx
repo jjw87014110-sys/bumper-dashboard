@@ -26,6 +26,7 @@ export default function AlarmPage() {
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [searchText, setSearchText] = useState('')
   // 입력 폼: holder_category 와 holder_no 분리
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_category: '', holder_no: '', note: '' })
 
@@ -95,8 +96,31 @@ export default function AlarmPage() {
   const filtered = data.filter(r => {
     if (dateFrom && r.date < dateFrom) return false
     if (dateTo && r.date > dateTo) return false
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase()
+      const note = (r.note || '').toLowerCase()
+      const holder = (r.holder_no || '').toLowerCase()
+      if (!note.includes(q) && !holder.includes(q)) return false
+    }
     return true
   })
+
+  // 월별 알람 추이 (최근 6개월)
+  const monthlyChart = (() => {
+    const now = new Date()
+    const months: { label: string; punch: number; weld: number }[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      const label = `${d.getMonth()+1}월`
+      const rows = data.filter(r => r.date && r.date.startsWith(ym))
+      const punch = rows.reduce((s: number, r: any) => s + (r.punch_alarm||0), 0)
+      const weld = rows.reduce((s: number, r: any) => s + (r.weld_alarm||0), 0)
+      months.push({ label, punch, weld })
+    }
+    return months
+  })()
+  const chartMax = Math.max(...monthlyChart.map(m => m.punch + m.weld), 1)
 
   // 설비별 구조 가져오기
   const structure = selected ? getEquipmentStructure(selected.no) : null
@@ -219,6 +243,31 @@ export default function AlarmPage() {
                       <span style={{ fontSize: 11 }}>~</span>
                       <input className="form-input" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ fontSize: 11, padding: '4px 6px' }} />
                     </div>
+                  </div>
+                  <div className="card" style={{ minWidth: 180, padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>검색 (비고/홀더)</div>
+                    <input className="form-input" placeholder="키워드 입력..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ fontSize: 11, padding: '4px 6px', width: '100%' }} />
+                  </div>
+                </div>
+
+                {/* 월별 알람 추이 차트 (최근 6개월) */}
+                <div className="card" style={{ padding: '14px 16px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>월별 알람 추이 <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>최근 6개월</span></div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80 }}>
+                    {monthlyChart.map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{m.punch + m.weld || ''}</div>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <div style={{ width: '100%', height: Math.round((m.weld / chartMax) * 52), background: 'var(--accent-blue)', borderRadius: 2, minHeight: m.weld > 0 ? 2 : 0 }} title={`융착 ${m.weld}`} />
+                          <div style={{ width: '100%', height: Math.round((m.punch / chartMax) * 52), background: 'var(--accent-amber)', borderRadius: 2, minHeight: m.punch > 0 ? 2 : 0 }} title={`펀칭 ${m.punch}`} />
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)' }}><div style={{ width: 10, height: 10, background: 'var(--accent-amber)', borderRadius: 2 }} />펀칭</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)' }}><div style={{ width: 10, height: 10, background: 'var(--accent-blue)', borderRadius: 2 }} />융착</div>
                   </div>
                 </div>
 
