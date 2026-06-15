@@ -4,12 +4,9 @@ import { useRequireAuth } from '@/lib/auth'
 import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import { toLocalDate } from '@/lib/constants'
 
 type ReportPeriod = 'week' | 'month' | 'custom'
-
-function toLocalDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-}
 
 // "6/7", "6/14", "2026-06-07" 같은 다양한 날짜 표현을 Date로 변환
 // 연도가 빠진 경우 현재 연도 사용 (단, 1~2월인데 현재 11~12월이면 다음 해로 가정)
