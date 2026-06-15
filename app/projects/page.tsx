@@ -78,6 +78,8 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState<string>('진행중')
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState<Project | null>(null)
+  const [undoItem, setUndoItem] = useState<Project | null>(null)
+  const [showDoneArchive, setShowDoneArchive] = useState(false)
   const [form, setForm] = useState<any>({
     title: '', category: '', car_model: '', equipment_type: '',
     status: '진행중', history: [] as HistoryItem[], next_plan: [] as HistoryItem[],
@@ -173,11 +175,26 @@ export default function ProjectsPage() {
     setModal(false); reload()
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('이 프로젝트를 삭제하시겠습니까?')) return
-    await supabase.from('projects').delete().eq('id', id)
-    showToast('삭제되었습니다')
-    reload()
+  async function handleDelete(p: Project) {
+    // 즉시 화면에서 제거 (낙관적 업데이트)
+    setProjects(prev => prev.filter(x => x.id !== p.id))
+    setUndoItem(p)
+    // 3초 후 실제 DB 삭제 (Undo 안 하면)
+    const timer = setTimeout(async () => {
+      await supabase.from('projects').delete().eq('id', p.id)
+      setUndoItem(null)
+    }, 5000)
+    // Undo 함수를 토스트에 붙이기 위해 window에 임시 저장
+    ;(window as any).__undoTimer = timer
+    showToast('삭제되었습니다 — 5초 내 되돌리기 가능')
+  }
+
+  function handleUndo() {
+    if (!undoItem) return
+    clearTimeout((window as any).__undoTimer)
+    setProjects(prev => [undoItem, ...prev].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()))
+    setUndoItem(null)
+    showToast('삭제가 취소되었습니다')
   }
 
   async function markCompleted(p: Project) {
@@ -191,7 +208,11 @@ export default function ProjectsPage() {
     reload()
   }
 
-  const filtered = filter === '전체' ? projects : projects.filter(p => p.status === filter)
+  // 완료 건은 최신 5개만 기본 표시, 아카이브 토글로 전체 보기
+  const doneProjects = projects.filter(p => p.status === '완료')
+  const filtered = filter === '전체' ? projects :
+    filter === '완료' ? (showDoneArchive ? doneProjects : doneProjects.slice(0, 5)) :
+    projects.filter(p => p.status === filter)
   const stats = {
     total: projects.length,
     inProgress: projects.filter(p => p.status === '진행중').length,
@@ -312,14 +333,36 @@ export default function ProjectsPage() {
                     {p.status !== '완료' && (
                       <button className="btn btn-sm btn-ghost" onClick={() => markCompleted(p)} style={{ flex: 1 }}>완료</button>
                     )}
-                    <button className="btn btn-sm btn-ghost" onClick={() => handleDelete(p.id)} style={{ color: 'var(--accent-red)' }}>삭제</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => handleDelete(p)} style={{ color: 'var(--accent-red)' }}>삭제</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          {/* 완료 탭에서 5개 이상이면 아카이브 더보기 버튼 */}
+          {filter === '완료' && doneProjects.length > 5 && (
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowDoneArchive(!showDoneArchive)}>
+                {showDoneArchive ? `▲ 접기` : `▼ 완료 전체 보기 (${doneProjects.length}건)`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Undo 버튼 (삭제 후 5초간 표시) */}
+      {undoItem && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
+          padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999, fontSize: 13,
+        }}>
+          <span>"{undoItem.title}" 삭제됨</span>
+          <button className="btn btn-sm btn-primary" onClick={handleUndo}>되돌리기</button>
+        </div>
+      )}
 
       {/* 추가/수정 모달 */}
       {modal && (
