@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 import { exportMaterialsData } from '@/lib/exportCSV'
+import { TYPE_COLORS } from '@/lib/constants'
 
 export default function MaterialsPage() {
   useRequireAuth()
+  const { showToast, ToastUI } = useToast()
   const [equipment, setEquipment] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
@@ -17,11 +19,10 @@ export default function MaterialsPage() {
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
-  const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [searchText, setSearchText] = useState('')
   const [form, setForm] = useState<any>({ item_no: '', item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, min_quantity: 0, note: '' })
 
-  const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
+  const typeColors = TYPE_COLORS
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -40,7 +41,6 @@ export default function MaterialsPage() {
     setData(data || [])
   }
 
-  const { showToast, ToastUI } = useToast()
   function openAdd() { setEditItem(null); setForm({ item_no: (data.length + 1), item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, min_quantity: 0, note: '' }); setModal(true) }
   function openEdit(r: any) { setEditItem(r); setForm({ item_no: r.item_no, item_name: r.item_name, spec: r.spec||'', maker: r.maker||'', unit: r.unit, quantity: r.quantity, min_quantity: r.min_quantity||0, note: r.note||'' }); setModal(true) }
 
