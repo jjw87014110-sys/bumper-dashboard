@@ -18,6 +18,7 @@ export default function MaintenancePage() {
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
+  const [searchText, setSearchText] = useState('')
   const [form, setForm] = useState<any>({ maintenance_date: new Date().toISOString().slice(0,16), shift: '주간', worker: '', alarm_content: '', defect_type: '', action_detail: '', replaced_parts: '', note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
@@ -119,8 +120,15 @@ export default function MaintenancePage() {
                   </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
-                    정비 이력 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>{data.length}건</span>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>정비 이력</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{data.filter(r => {
+                      if (!searchText.trim()) return true
+                      const q = searchText.toLowerCase()
+                      return ['worker','alarm_content','defect_type','action_detail','replaced_parts','note'].some(k => (r[k]||'').toLowerCase().includes(q))
+                    }).length}건</span>
+                    <div style={{ flex: 1 }} />
+                    <input className="form-input" placeholder="작업자/내용 검색..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', width: 180 }} />
                   </div>
                   {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
@@ -130,7 +138,11 @@ export default function MaintenancePage() {
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead><tr>{['정비일시','주/야','작업자','알람내용','불량유형','조치내역','교체부품','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
-                        <tbody>{data.map(r => (
+                        <tbody>{data.filter(r => {
+                          if (!searchText.trim()) return true
+                          const q = searchText.toLowerCase()
+                          return ['worker','alarm_content','defect_type','action_detail','replaced_parts','note'].some(k => (r[k]||'').toLowerCase().includes(q))
+                        }).map(r => (
                           <tr key={r.id}>
                             <td className="tbl-td">{String(r.maintenance_date||'').slice(0,16)}</td>
                             <td className="tbl-td"><span className={`badge ${r.shift==='주간'?'badge-amber':'badge-blue'}`}>{r.shift}</span></td>
