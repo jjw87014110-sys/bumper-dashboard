@@ -41,6 +41,19 @@ export const STATUS_COLORS: Record<string, string> = {
 export const EQUIPMENT_TYPES = ['복합기', '융착기', '펀칭기', '지그'] as const
 export type EquipmentType = typeof EQUIPMENT_TYPES[number]
 
+// 설비 유형별 배지 색상 (5개 파일에서 중복 정의되던 것을 통합)
+export const TYPE_COLORS: Record<string, string> = {
+  '복합기': 'badge-blue',
+  '융착기': 'badge-green',
+  '펀칭기': 'badge-amber',
+  '지그': 'badge-gray',
+}
+
+// 설비번호 포맷 (#01, #02 ...) — 35곳에서 중복 사용되던 패턴
+export function formatEqNo(no: number | string): string {
+  return `#${String(no).padStart(2, '0')}`
+}
+
 // 모델 종류
 export const MODELS = ['OV1', 'SP3', 'NQ5', 'CN12', 'SX2', 'KA4', 'CK', 'JX', 'KB'] as const
 
