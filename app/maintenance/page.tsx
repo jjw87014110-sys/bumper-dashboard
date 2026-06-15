@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
 import { exportMaintenanceData } from '@/lib/exportCSV'
+import { TYPE_COLORS } from '@/lib/constants'
 
 export default function MaintenancePage() {
   useRequireAuth()
+  const { showToast, ToastUI } = useToast()
   const [equipment, setEquipment] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
@@ -17,11 +19,10 @@ export default function MaintenancePage() {
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
-  const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [searchText, setSearchText] = useState('')
   const [form, setForm] = useState<any>({ maintenance_date: new Date().toISOString().slice(0,16), shift: '주간', worker: '', alarm_content: '', defect_type: '', action_detail: '', replaced_parts: '', note: '' })
 
-  const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber', '지그': 'badge-gray' }
+  const typeColors = TYPE_COLORS
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').order('no')
@@ -40,7 +41,6 @@ export default function MaintenancePage() {
     setData(data || [])
   }
 
-  const { showToast, ToastUI } = useToast()
   function openAdd() { setEditItem(null); setForm({ maintenance_date: new Date().toISOString().slice(0,16), shift: '주간', worker: '', alarm_content: '', defect_type: '', action_detail: '', replaced_parts: '', note: '' }); setModal(true) }
   function openEdit(r: any) { setEditItem(r); setForm({ maintenance_date: String(r.maintenance_date||'').slice(0,16), shift: r.shift, worker: r.worker, alarm_content: r.alarm_content||'', defect_type: r.defect_type||'', action_detail: r.action_detail||'', replaced_parts: r.replaced_parts||'', note: r.note||'' }); setModal(true) }
 
