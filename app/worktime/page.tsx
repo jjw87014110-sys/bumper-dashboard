@@ -72,8 +72,23 @@ export default function WorktimePage() {
   const [weekStart, setWeekStart] = useState(thisWeekStart)
   const [weekEnd, setWeekEnd] = useState(thisWeekEnd)
   const [expandedStaff, setExpandedStaff] = useState<string | null>(null)
-  // 잔업 입력 임시값 { "staffName|date": 분 }
   const [overtimeEdits, setOvertimeEdits] = useState<Record<string, string>>({})
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly')
+
+  // 월간 누적 계산
+  const monthlyStats = useMemo(() => {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
+    return staffList.map(s => {
+      const recs = allRecords.filter(r => r.staff_name === s.name && r.date >= monthStart && r.date <= monthEnd)
+      const worked = recs.filter(r => (r.work_hours || 0) > 0)
+      const baseTotal = worked.reduce((sum, r) => sum + (r.work_hours || 0), 0)
+      const otTotal = worked.reduce((sum, r) => sum + ((r.overtime_minutes || 0) / 60), 0)
+      const total = Math.round((baseTotal + otTotal) * 10) / 10
+      const over52 = Math.max(0, total - 52)
+      return { name: s.name, daysWorked: worked.length, baseTotal, otTotal: Math.round(otTotal * 10) / 10, total, over52: Math.round(over52 * 10) / 10 }
+    })
+  }, [staffList, allRecords, year, month])
 
   useEffect(() => { fetchAll() }, [])
 
@@ -231,12 +246,51 @@ export default function WorktimePage() {
             <div style={{ fontSize: 17, fontWeight: 700 }}>Worktime</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>보전반 근무시간 관리 · 주 52h 주의 / 64h 한도</div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: 3, gap: 3 }}>
+              <button className={`btn btn-sm ${viewMode === 'weekly' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('weekly')}>주간</button>
+              <button className={`btn btn-sm ${viewMode === 'monthly' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('monthly')}>월간 누적</button>
+            </div>
             <button className="btn btn-primary btn-sm" onClick={() => setUploadModal(true)}>+ ERP 파일 업로드</button>
           </div>
         </div>
 
         <div className="content-area">
+          {/* 월간 누적 뷰 */}
+          {viewMode === 'monthly' && (
+            <div>
+              <div className="card" style={{ padding: '14px 18px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{year}년 {month}월 누적 근무시간</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(year, month - 2); setYear(d.getFullYear()); setMonth(d.getMonth() + 1) }}>◀</button>
+                  <span style={{ fontSize: 12, padding: '4px 8px' }}>{month}월</span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(year, month); setYear(d.getFullYear()); setMonth(d.getMonth() + 1) }}>▶</button>
+                </div>
+              </div>
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>{['이름', '근무일수', '기본(h)', '잔업(h)', '합계(h)', '52h 초과'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {monthlyStats.map(s => (
+                      <tr key={s.name} style={{ background: s.over52 > 0 ? 'var(--accent-red-dim)' : undefined }}>
+                        <td className="tbl-td" style={{ fontWeight: 600 }}>{s.name}</td>
+                        <td className="tbl-td">{s.daysWorked}일</td>
+                        <td className="tbl-td">{s.baseTotal}h</td>
+                        <td className="tbl-td" style={{ color: s.otTotal > 0 ? 'var(--accent-amber)' : undefined }}>{s.otTotal > 0 ? `+${s.otTotal}h` : '-'}</td>
+                        <td className="tbl-td" style={{ fontWeight: 700, fontSize: 14, color: s.total >= 52 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{s.total}h</td>
+                        <td className="tbl-td" style={{ color: s.over52 > 0 ? 'var(--accent-red)' : 'var(--text-muted)' }}>{s.over52 > 0 ? `+${s.over52}h` : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 주간 뷰 */}
+          {viewMode === 'weekly' && <>
           {/* 상단 요약 바 */}
           <div className="card" style={{
             padding: '14px 20px',
@@ -563,6 +617,7 @@ export default function WorktimePage() {
               )}
             </>
           )}
+          </>}
         </div>
       </div>
 
