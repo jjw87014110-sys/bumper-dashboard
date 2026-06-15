@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import { toLocalDate } from '@/lib/constants'
 
 function BarChart({ items, color, max }: { items: any[], color: string, max: number }) {
 
@@ -42,10 +43,6 @@ function BarChart({ items, color, max }: { items: any[], color: string, max: num
       </table>
     </div>
   )
-}
-
-function toLocalDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
 }
 
 export default function AnalysisPage() {
@@ -140,7 +137,7 @@ export default function AnalysisPage() {
       .map((e: any) => ({ no: e.no, name: e.name, count: scMap[e.no] }))
       .sort((a: any, b: any) => b.count - a.count))
 
-    } catch (err) { console.error('Analysis fetch error:', err) }
+    } catch { /* fetch 실패 시 무시 */ }
     setLoading(false)
   }
 
