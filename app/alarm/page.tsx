@@ -12,9 +12,11 @@ import {
   parseHolderKey,
 } from '@/lib/holderStructure'
 import { exportAlarmData } from '@/lib/exportCSV'
+import { TYPE_COLORS } from '@/lib/constants'
 
 export default function AlarmPage() {
   useRequireAuth()
+  const { showToast, ToastUI } = useToast()
   const [equipment, setEquipment] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [data, setData] = useState<any[]>([])
@@ -23,14 +25,12 @@ export default function AlarmPage() {
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
-  const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [searchText, setSearchText] = useState('')
-  // 입력 폼: holder_category 와 holder_no 분리
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), punch_alarm: 0, weld_alarm: 0, holder_category: '', holder_no: '', note: '' })
 
-  const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
+  const typeColors = TYPE_COLORS
 
   useEffect(() => {
     supabase.from('equipment').select('no,name,model,type').neq('type','지그').order('no')
@@ -48,8 +48,6 @@ export default function AlarmPage() {
     const { data } = await supabase.from('alarm').select('*').eq('equipment_no', selected.no).order('date', { ascending: false })
     setData(data || [])
   }
-
-  const { showToast, ToastUI } = useToast()
 
   function openAdd() {
     setEditItem(null)
