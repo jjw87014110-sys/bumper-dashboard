@@ -4,14 +4,11 @@ import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import Favorites from '@/components/Favorites'
+import { toLocalDate } from '@/lib/constants'
 
 const IMARKING_BASE_DATE = new Date('2026-04-29')
 const IMARKING_BASE_EQ = 1
 const TOTAL_EQ = 31
-
-function toLocalDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
-}
 
 function getImarkingSchedule(date: Date): number {
   const day = date.getDay()
