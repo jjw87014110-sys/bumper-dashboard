@@ -271,6 +271,26 @@ export default function ReportsPage() {
         .gte('date', weekStart).lte('date', nextWeekEnd)
         .order('date', { ascending: true })
 
+      // 자재 부족 목록 (수량 < 최소수량)
+      const { data: allMaterials } = await supabase.from('materials').select('item_name, spec, maker, quantity, min_quantity, equipment_no')
+      const lowStockItems = (allMaterials || []).filter((m: any) => (m.min_quantity || 0) > 0 && m.quantity < m.min_quantity)
+
+      // 정비 예정 설비 (최근 정비일 + 정비 주기 기준, 7일 이내)
+      const { data: eqList } = await supabase.from('equipment').select('no, name, model, maintenance_cycle_days')
+      const { data: lastMaints } = await supabase.from('maintenance').select('equipment_no, maintenance_date').order('maintenance_date', { ascending: false })
+      const lastMaintMap: Record<number, string> = {}
+      ;(lastMaints || []).forEach((m: any) => {
+        if (!lastMaintMap[m.equipment_no]) lastMaintMap[m.equipment_no] = m.maintenance_date
+      })
+      const today7 = new Date(); today7.setDate(today7.getDate() + 7)
+      const dueSoon = (eqList || []).filter((eq: any) => {
+        const last = lastMaintMap[eq.no]
+        if (!last) return false
+        const cycle = eq.maintenance_cycle_days || 30
+        const due = new Date(last); due.setDate(due.getDate() + cycle)
+        return due <= today7
+      }).map((eq: any) => ({ name: eq.name, model: eq.model, dueDate: (() => { const d = new Date(lastMaintMap[eq.no]); d.setDate(d.getDate() + (eq.maintenance_cycle_days || 30)); return d.toISOString().slice(0, 10) })() }))
+
       const res = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -278,6 +298,8 @@ export default function ReportsPage() {
           projects: projects || [],
           maintenance: maint || [],
           calendarEvents: cal || [],
+          lowStockItems,
+          dueSoon,
           weekStart, weekEnd, nextWeekStart, nextWeekEnd,
         }),
       })
