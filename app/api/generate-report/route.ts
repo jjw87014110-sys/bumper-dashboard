@@ -22,6 +22,8 @@ type Maintenance = {
   note?: string | null
 }
 type CalendarEvent = { date: string; label: string }
+type LowStockItem = { item_name: string; spec?: string; maker?: string; quantity: number; min_quantity: number }
+type DueSoonItem = { name: string; model: string; dueDate: string }
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,6 +32,8 @@ export async function POST(req: NextRequest) {
       projects = [],
       maintenance = [],
       calendarEvents = [],
+      lowStockItems = [],
+      dueSoon = [],
       weekStart = '',
       weekEnd = '',
       nextWeekStart = '',
@@ -38,6 +42,8 @@ export async function POST(req: NextRequest) {
       projects: Project[]
       maintenance: Maintenance[]
       calendarEvents: CalendarEvent[]
+      lowStockItems: LowStockItem[]
+      dueSoon: DueSoonItem[]
       weekStart: string
       weekEnd: string
       nextWeekStart: string
@@ -46,13 +52,11 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      // API 키 없으면 DB 데이터만으로 텍스트 생성 (폴백)
-      const fallback = buildFallbackText({ projects, maintenance, calendarEvents, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
+      const fallback = buildFallbackText({ projects, maintenance, calendarEvents, lowStockItems, dueSoon, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
       return NextResponse.json({ text: fallback, aiUsed: false })
     }
 
-    // Claude API 프롬프트 구성
-    const prompt = buildPrompt({ projects, maintenance, calendarEvents, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
+    const prompt = buildPrompt({ projects, maintenance, calendarEvents, lowStockItems, dueSoon, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
 
     const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -70,9 +74,8 @@ export async function POST(req: NextRequest) {
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text()
-      console.error('Claude API error:', errText)
       // 실패하면 폴백
-      const fallback = buildFallbackText({ projects, maintenance, calendarEvents, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
+      const fallback = buildFallbackText({ projects, maintenance, calendarEvents, lowStockItems, dueSoon, weekStart, weekEnd, nextWeekStart, nextWeekEnd })
       return NextResponse.json({ text: fallback, aiUsed: false, error: 'AI 호출 실패, DB 데이터로 생성됨' })
     }
 
@@ -90,6 +93,8 @@ function buildPrompt(p: {
   projects: Project[]
   maintenance: Maintenance[]
   calendarEvents: CalendarEvent[]
+  lowStockItems: LowStockItem[]
+  dueSoon: DueSoonItem[]
   weekStart: string
   weekEnd: string
   nextWeekStart: string
@@ -111,6 +116,14 @@ function buildPrompt(p: {
   const calText = p.calendarEvents.length === 0
     ? '(없음)'
     : p.calendarEvents.map(c => `- ${c.date.slice(5)}: ${c.label}`).join('\n')
+
+  const lowStockText = p.lowStockItems.length === 0
+    ? '(없음)'
+    : p.lowStockItems.map(m => `- ${m.item_name}${m.spec ? ` (${m.spec})` : ''}: 현재 ${m.quantity}개 / 최소 ${m.min_quantity}개`).join('\n')
+
+  const dueSoonText = p.dueSoon.length === 0
+    ? '(없음)'
+    : p.dueSoon.map(d => `- ${d.name} (${d.model}): 예정일 ${d.dueDate}`).join('\n')
 
   return `당신은 생산기술팀 조립/UT 담당의 주간 보고서 작성을 돕는 어시스턴트입니다.
 아래 데이터를 바탕으로 BPR 후가공설비 관련 주간 보고서를 작성해 주세요.
@@ -134,6 +147,9 @@ function buildPrompt(p: {
 - 번호 매겨서 작성
 - 같은 형식으로 작성
 
+## 자재/설비 관리 현황
+- 자재 부족 및 정비 예정 설비가 있으면 간략히 1~2줄로 언급
+
 # 작성 스타일 가이드
 - 자주 쓰는 키워드: 점검, 개선, 검토, 협의, 셋업, 양산, 수평전개, 이관, 반출
 - 일정 표현: 5/16, 5/22, ~5/28, 5/E, 연중~
@@ -154,6 +170,12 @@ ${maintText}
 ## 캘린더 일정 (전주~금주)
 ${calText}
 
+## 자재 부족 목록 (현재 기준)
+${lowStockText}
+
+## 정비 예정 설비 (7일 이내)
+${dueSoonText}
+
 # 출력 요구사항
 1. 위 양식 그대로 따라 작성 (마크다운 ## 제목 유지)
 2. 빈 섹션이라도 "(없음)"으로 표시하지 말고, 데이터가 없으면 합리적으로 비워두기
@@ -166,6 +188,8 @@ function buildFallbackText(p: {
   projects: Project[]
   maintenance: Maintenance[]
   calendarEvents: CalendarEvent[]
+  lowStockItems: LowStockItem[]
+  dueSoon: DueSoonItem[]
   weekStart: string
   weekEnd: string
   nextWeekStart: string
@@ -195,7 +219,6 @@ function buildFallbackText(p: {
   lines.push(`### 전주 실적 (${p.weekStart} ~ ${p.weekEnd})`)
   lines.push('')
 
-  // 진행중 프로젝트의 history에서 이번 주에 해당하는 것 추출
   const histLines: string[] = []
   p.projects.forEach(pr => {
     (pr.history || []).forEach(h => {
@@ -232,6 +255,22 @@ function buildFallbackText(p: {
       lines.push('')
       lines.push('캘린더 일정:')
       p.calendarEvents.forEach(c => lines.push(`- ${c.date.slice(5)}: ${c.label}`))
+    }
+  }
+
+  // 자재 부족 / 정비 예정 섹션
+  if (p.lowStockItems.length > 0 || p.dueSoon.length > 0) {
+    lines.push('')
+    lines.push('## 자재/설비 관리 현황')
+    lines.push('')
+    if (p.lowStockItems.length > 0) {
+      lines.push(`자재 부족 (${p.lowStockItems.length}건):`)
+      p.lowStockItems.forEach(m => lines.push(`- ${m.item_name}${m.spec ? ` (${m.spec})` : ''}: ${m.quantity}개 (최소 ${m.min_quantity}개)`))
+    }
+    if (p.dueSoon.length > 0) {
+      if (p.lowStockItems.length > 0) lines.push('')
+      lines.push(`정비 예정 설비 (7일 이내, ${p.dueSoon.length}대):`)
+      p.dueSoon.forEach(d => lines.push(`- ${d.name} (${d.model}): ${d.dueDate}`))
     }
   }
 
