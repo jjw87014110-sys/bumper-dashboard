@@ -643,6 +643,8 @@ export default function DashboardPage() {
     { label: `${pLabel} 알람`, value: stats.alarm, unit: '건', color: 'var(--accent-amber)', icon: '🔔', warn: stats.alarm >= 20 },
     { label: `${pLabel} 정비이력`, value: stats.maintenance, unit: '건', color: 'var(--accent-teal)', icon: '🔧' },
     { label: `${pLabel} 찍힘`, value: stats.scratch, unit: '건', color: 'var(--accent-green)', icon: '🔍' },
+    { label: '정비 예정 (7일)', value: maintenanceDue.length, unit: '대', color: maintenanceDue.length > 0 ? 'var(--accent-blue)' : 'var(--accent-teal)', icon: '📅', warn: maintenanceDue.length > 0 },
+    { label: '자재 부족', value: lowStockItems.length, unit: '건', color: lowStockItems.length > 0 ? 'var(--accent-red)' : 'var(--accent-green)', icon: '📦', warn: lowStockItems.length > 0 },
   ]
 
   return (
@@ -715,7 +717,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
+          <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:16 }}>
             {kpiCards.map((k: any) => (
               <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
