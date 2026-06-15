@@ -18,6 +18,7 @@ export default function MaterialsPage() {
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<number|null>(null)
   const [toast, setToast] = useState<{msg:string,type:string}|null>(null)
+  const [searchText, setSearchText] = useState('')
   const [form, setForm] = useState<any>({ item_no: '', item_name: '', spec: '', maker: '', unit: 'EA', quantity: 0, min_quantity: 0, note: '' })
 
   const typeColors: any = { '복합기': 'badge-blue', '융착기': 'badge-green', '펀칭기': 'badge-amber' }
@@ -119,8 +120,11 @@ export default function MaterialsPage() {
                   </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
-                    자재 목록 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>{data.length}종</span>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>자재 목록</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{data.filter(r => !searchText.trim() || ['item_name','spec','maker','note'].some(k => (r[k]||'').toLowerCase().includes(searchText.toLowerCase()))).length}종</span>
+                    <div style={{ flex: 1 }} />
+                    <input className="form-input" placeholder="품목명/규격 검색..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', width: 180 }} />
                   </div>
                   {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>로딩 중...</div>
@@ -129,7 +133,7 @@ export default function MaterialsPage() {
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead><tr>{['No','품목명','규격','MAKER','단위','수량','최소','상태','비고','관리'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr></thead>
-                      <tbody>{data.map(r => {
+                      <tbody>{data.filter(r => !searchText.trim() || ['item_name','spec','maker','note'].some(k => (r[k]||'').toLowerCase().includes(searchText.toLowerCase()))).map(r => {
                         const minQ = r.min_quantity || 0
                         const isLow = minQ > 0 && r.quantity < minQ
                         return (
