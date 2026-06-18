@@ -896,12 +896,12 @@ export default function DashboardPage() {
                   <button className="btn btn-ghost btn-sm" onClick={() => { const d=new Date(calYear,calMonth+1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}>›</button>
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', borderBottom:'1px solid var(--border)' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', borderBottom:'1px solid var(--border)' }}>
                 {['일','월','화','수','목','금','토'].map((d,i) => (
                   <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11, fontWeight:600, color:i===0?'var(--accent-red)':i===6?'var(--accent-teal)':'var(--text-muted)' }}>{d}</div>
                 ))}
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))' }}>
                 {cells.map((cell,idx) => {
                   if (!cell) return <div key={idx} style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }} />
                   const date = cell.date!
@@ -920,7 +920,7 @@ export default function DashboardPage() {
                       onDragOver={e => { e.preventDefault(); setDragOverDate(dateStr) }}
                       onDragLeave={() => setDragOverDate(null)}
                       onDrop={e => { e.preventDefault(); setDragOverDate(null); if (dragItem) { moveEvent(dragItem.date, dragItem.idx, dateStr); setDragItem(null) } }}
-                      style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', padding:'6px', background:dragOverDate===dateStr?'var(--accent-blue-dim)':isSelected?'var(--accent-blue-dim)':isToday2?'rgba(59,126,248,0.05)':'transparent', cursor:'pointer', outline:dragOverDate===dateStr?'2px dashed var(--accent-blue)':isSelected?'2px solid var(--accent-blue)':'none', outlineOffset:'-2px', transition:'all 0.15s' }}
+                      style={{ minHeight:110, minWidth:0, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', padding:'6px', background:dragOverDate===dateStr?'var(--accent-blue-dim)':isSelected?'var(--accent-blue-dim)':isToday2?'rgba(59,126,248,0.05)':'transparent', cursor:'pointer', outline:dragOverDate===dateStr?'2px dashed var(--accent-blue)':isSelected?'2px solid var(--accent-blue)':'none', outlineOffset:'-2px', transition:'all 0.15s' }}
                     >
                       <div style={{ marginBottom:4 }}>
                         <span style={{ fontSize:12, fontWeight:isToday2?700:400, color:isToday2?'white':wd===0?'var(--accent-red)':wd===6?'var(--accent-teal)':'var(--text-primary)', background:isToday2?'var(--accent-blue)':'transparent', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
@@ -949,7 +949,7 @@ export default function DashboardPage() {
                             draggable
                             onDragStart={e => { setDragItem({date:dateStr,idx:i,label:ev}); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',ev) }}
                             onDragEnd={() => setDragItem(null)}
-                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab' }}>
+                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab', minWidth:0 }}>
                             <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer', flex:1 }}
                               onClick={e => { e.stopPropagation(); openEditEvent(dateStr,i,ev) }}>
                               {isDone?'✓ ':''}{ev}
