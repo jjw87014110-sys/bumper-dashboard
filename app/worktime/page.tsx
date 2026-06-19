@@ -1,693 +1,1058 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
 import { useRequireAuth } from '@/lib/auth'
-import { useToast } from '@/lib/useToast'
 import { supabase } from '@/lib/supabase'
-import { logAudit, getCurrentUserName } from '@/lib/auditLog'
 import Sidebar from '@/components/Sidebar'
-import { parseErpExcel, getWeekRange, predictWeeklyHours, WorktimeRecord } from '@/lib/worktimeParser'
+import Favorites from '@/components/Favorites'
+import { toLocalDate } from '@/lib/constants'
 
-interface Staff {
-  id: number
-  name: string
-  team: string
-  shift_pattern: string
-  emp_no: string
+const IMARKING_BASE_DATE = new Date('2026-04-29')
+const IMARKING_BASE_EQ = 1
+const TOTAL_EQ = 31
+
+function getImarkingSchedule(date: Date): number {
+  const day = date.getDay()
+  if (day === 0 || day === 6) return 0
+  let weekdayCount = 0
+  const d = new Date(IMARKING_BASE_DATE)
+  const target = new Date(date)
+  target.setHours(0,0,0,0)
+  d.setHours(0,0,0,0)
+  if (target < d) {
+    const cur = new Date(target)
+    while (cur < d) { if (cur.getDay()!==0&&cur.getDay()!==6) weekdayCount--; cur.setDate(cur.getDate()+1) }
+  } else {
+    const cur = new Date(d)
+    while (cur < target) { if (cur.getDay()!==0&&cur.getDay()!==6) weekdayCount++; cur.setDate(cur.getDate()+1) }
+  }
+  return ((IMARKING_BASE_EQ-1+weekdayCount)%TOTAL_EQ+TOTAL_EQ)%TOTAL_EQ+1
 }
 
-// 원형 게이지 컴포넌트
-function CircularGauge({ value, max, secondary, color }: { value: number; max: number; secondary?: number; color: string }) {
-  const radius = 48
-  const circ = 2 * Math.PI * radius
-  const pct = Math.min(value / max, 1)
-  const dash = circ * pct
-  const secondaryAngle = secondary !== undefined ? (secondary / max) * 360 - 90 : null
-
-  return (
-    <div style={{ position: 'relative', width: 110, height: 110, flexShrink: 0 }}>
-      <svg width="110" height="110" viewBox="0 0 110 110">
-        <circle cx="55" cy="55" r={radius} fill="none" stroke="var(--bg-hover)" strokeWidth="9" />
-        <circle
-          cx="55" cy="55" r={radius}
-          fill="none" stroke={color} strokeWidth="9"
-          strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round"
-          transform="rotate(-90 55 55)"
-          style={{ transition: 'stroke-dasharray 0.5s ease' }}
-        />
-        {secondaryAngle !== null && (
-          <circle
-            cx={55 + radius * Math.cos((secondaryAngle * Math.PI) / 180)}
-            cy={55 + radius * Math.sin((secondaryAngle * Math.PI) / 180)}
-            r="3.5"
-            fill="var(--accent-amber)"
-            stroke="white"
-            strokeWidth="1.5"
-          />
-        )}
-      </svg>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1.1 }}>{value.toFixed(1)}</div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>/ {max}h</div>
-      </div>
-    </div>
-  )
+const KR_HOLIDAYS: Record<string, string> = {
+  '2026-01-01':'신정','2026-01-28':'설날 연휴','2026-01-29':'설날','2026-01-30':'설날 연휴',
+  '2026-03-01':'삼일절','2026-05-01':'근로자의 날','2026-05-05':'어린이날',
+  '2026-05-15':'부처님 오신 날','2026-06-06':'현충일','2026-08-15':'광복절',
+  '2026-09-24':'추석 연휴','2026-09-25':'추석','2026-09-26':'추석 연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
 }
 
-export default function WorktimePage() {
-  useRequireAuth()
-  const { showToast, ToastUI } = useToast()
+function getTomorrowInfo(): { isOff: boolean; reason: string } {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate()+1)
+  const s = toLocalDate(tomorrow)
+  const wd = tomorrow.getDay()
+  if (wd===0) return { isOff: true, reason: '일요일' }
+  if (wd===6) return { isOff: true, reason: '토요일' }
+  if (KR_HOLIDAYS[s]) return { isOff: true, reason: KR_HOLIDAYS[s] }
+  return { isOff: false, reason: '' }
+}
 
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const [allRecords, setAllRecords] = useState<WorktimeRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [uploadModal, setUploadModal] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
-  const [year, setYear] = useState(new Date().getFullYear())
-  const [month, setMonth] = useState(new Date().getMonth() + 1)
+// 월급날 체크 (10일, 25일 - 주말/공휴일이면 전날로 앞당겨짐)
+function isPayday(date: Date): boolean {
+  const ds = toLocalDate(date)
+  const month = date.getMonth(), year = date.getFullYear()
+  for (const payday of [10, 25]) {
+    // 해당 월의 10/25일부터 거꾸로 평일 찾기
+    let d = new Date(year, month, payday)
+    while (d.getDay() === 0 || d.getDay() === 6 || KR_HOLIDAYS[toLocalDate(d)]) {
+      d.setDate(d.getDate() - 1)
+    }
+    if (toLocalDate(d) === ds) return true
+  }
+  return false
+}
 
+type VibeType = 'weekend' | 'holiday' | 'payday' | 'payday_weekend' | 'weekday'
+interface DashboardVibe {
+  type: VibeType
+  emoji: string
+  title: string
+  subtitle: string
+  gradient: string
+  borderColor: string
+  titleColor: string
+}
+
+function getDashboardVibe(): DashboardVibe {
   const today = new Date()
-  const { weekStart: thisWeekStart, weekEnd: thisWeekEnd } = getWeekRange(today)
-  const [weekStart, setWeekStart] = useState(thisWeekStart)
-  const [weekEnd, setWeekEnd] = useState(thisWeekEnd)
-  const [expandedStaff, setExpandedStaff] = useState<string | null>(null)
-  const [overtimeEdits, setOvertimeEdits] = useState<Record<string, string>>({})
-  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly')
+  const todayWd = today.getDay() // 0=일 ~ 6=토
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate()+1)
+  const tomorrowWd = tomorrow.getDay()
+  const tomorrowStr = toLocalDate(tomorrow)
+  const tomorrowIsOff = tomorrowWd === 0 || tomorrowWd === 6 || !!KR_HOLIDAYS[tomorrowStr]
+  const tomorrowReason = tomorrowWd === 0 ? '일요일' : tomorrowWd === 6 ? '토요일' : KR_HOLIDAYS[tomorrowStr] || ''
+  const todayIsPayday = isPayday(today)
 
-  // 월간 누적 계산
-  const monthlyStats = useMemo(() => {
-    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
-    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
-    return staffList.map(s => {
-      const recs = allRecords.filter(r => r.staff_name === s.name && r.date >= monthStart && r.date <= monthEnd)
-      const worked = recs.filter(r => (r.work_hours || 0) > 0)
-      const baseTotal = worked.reduce((sum, r) => sum + (r.work_hours || 0), 0)
-      const otTotal = worked.reduce((sum, r) => sum + ((r.overtime_minutes || 0) / 60), 0)
-      const total = Math.round((baseTotal + otTotal) * 10) / 10
-      const over52 = Math.max(0, total - 52)
-      return { name: s.name, daysWorked: worked.length, baseTotal, otTotal: Math.round(otTotal * 10) / 10, total, over52: Math.round(over52 * 10) / 10 }
+  // 월급날 + 내일 쉬는 날 (대박 콤보)
+  if (todayIsPayday && tomorrowIsOff) {
+    return {
+      type: 'payday_weekend', emoji: '🤑',
+      title: '월급날인데 내일 쉰다고?? 인생 뭐 있어 💸🎉',
+      subtitle: '통장 잔고 확인하고 퇴근 후 자축하세요 ㅋㅋ',
+      gradient: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,107,0.15))',
+      borderColor: 'var(--accent-amber)', titleColor: '#f59f00',
+    }
+  }
+
+  // 월급날
+  if (todayIsPayday) {
+    const paydayMsgs = [
+      { title: '월급 들어왔다 💰 잠깐만 행복하자', subtitle: '통장을 스쳐가는 월급… 그래도 오늘만큼은 부자' },
+      { title: '드디어 월급날 🤑 텅장이 잠깐 통장으로', subtitle: '카드값 빠지기 전이 제일 행복한 순간' },
+      { title: '월급이 들어왔습니다 💸 잔고 확인 금지', subtitle: '오늘 하루만 부자인 척 하기 ㅋㅋ' },
+    ]
+    const msg = paydayMsgs[today.getDate() % paydayMsgs.length]
+    return {
+      type: 'payday', emoji: '💰',
+      ...msg,
+      gradient: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.1))',
+      borderColor: '#f59f00', titleColor: '#f59f00',
+    }
+  }
+
+  // 내일 주말
+  if (tomorrowIsOff && (tomorrowWd === 0 || tomorrowWd === 6)) {
+    const weekendMsgs = [
+      { title: '내일 주말이다!! 칼퇴 준비 완료 🏃‍♂️💨', subtitle: '오늘 하루만 버티면 자유다' },
+      { title: '내일부터 주말 🎮 오늘만 참자', subtitle: '퇴근 카운트다운 시작 3... 2... 1...' },
+      { title: '주말이 코앞 🎉 오늘의 나 수고했다', subtitle: '내일은 알람 없는 아침이 기다리고 있음' },
+    ]
+    const msg = weekendMsgs[today.getDate() % weekendMsgs.length]
+    return {
+      type: 'weekend', emoji: '🎉',
+      ...msg,
+      gradient: 'linear-gradient(135deg, rgba(107,203,119,0.15), rgba(59,126,248,0.1))',
+      borderColor: 'var(--accent-green)', titleColor: 'var(--accent-green)',
+    }
+  }
+
+  // 내일 공휴일
+  if (tomorrowIsOff) {
+    return {
+      type: 'holiday', emoji: '🎊',
+      title: `내일 ${tomorrowReason}! 쉬는 날 get 🙌`,
+      subtitle: '갑자기 찾아온 행복... 오늘 업무 빠르게 정리하고 칼퇴!',
+      gradient: 'linear-gradient(135deg, rgba(255,180,0,0.15), rgba(204,93,232,0.1))',
+      borderColor: 'var(--accent-amber)', titleColor: 'var(--accent-amber)',
+    }
+  }
+
+  // 평일 (월~목 조언)
+  const weekdayMsgs: Record<number, { emoji: string; title: string; subtitle: string }> = {
+    1: { emoji: '💪', title: '월요일은 시작이 반 🔥 가볍게 워밍업!', subtitle: '커피 한 잔 하고 오늘 할 일 정리부터 하죠' },
+    2: { emoji: '🏃', title: '화요일, 슬슬 페이스 올려봅시다 🚀', subtitle: '어제보다 오늘이 더 낫다는 마인드로' },
+    3: { emoji: '🐫', title: '수요일 = 낙타의 날 🐪 이미 반 왔다', subtitle: '주간의 고비를 넘기면 내리막길만 남았음' },
+    4: { emoji: '⚡', title: '목요일, 내일이면 금요일이다!!', subtitle: '라스트 스퍼트 🏁 조금만 더 화이팅' },
+    5: { emoji: '🎉', title: '불금이다!! 오늘만 버티면 주말 🎊', subtitle: '이미 마음은 퇴근... 하지만 마무리는 깔끔하게' },
+  }
+  const msg = weekdayMsgs[todayWd] || { emoji: '☀️', title: '오늘도 화이팅!', subtitle: '좋은 하루 보내세요' }
+  return {
+    type: 'weekday', emoji: msg.emoji,
+    title: msg.title, subtitle: msg.subtitle,
+    gradient: 'linear-gradient(135deg, rgba(59,126,248,0.08), rgba(32,201,151,0.06))',
+    borderColor: 'var(--border)', titleColor: 'var(--text-primary)',
+  }
+}
+
+const DAILY_TODOS = [
+  { key: '변동점관리', label: '변동점관리', regular: true },
+  { key: '제품융착관리', label: '제품 융착관리', regular: true },
+  { key: '찍힘관리', label: '찍힘 관리', regular: true },
+  { key: '아이마킹', label: '아이마킹', regular: false },
+  { key: '정비이력관리', label: '정비이력 관리', regular: true },
+  { key: '알람관리', label: '알람관리', regular: true },
+]
+const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
+
+export default function DashboardPage() {
+  const { userRole } = useRequireAuth()
+  const isAdmin = userRole === 'admin'
+  const [stats, setStats] = useState({ equipment: 0, alarm: 0, maintenance: 0, scratch: 0 })
+  const [equipByType, setEquipByType] = useState<any>({})
+  const [loading, setLoading] = useState(true)
+  const [clock, setClock] = useState('')
+  const [today] = useState(new Date())
+  const todayKey = toLocalDate(today)
+
+  // KPI 카드 기간 필터 (오늘/이번주/이번달/최근30일/전체)
+  type KpiPeriod = 'today' | 'week' | 'month' | '30days' | 'all'
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('month')
+
+  const [calYear, setCalYear] = useState(today.getFullYear())
+  const [calMonth, setCalMonth] = useState(today.getMonth())
+
+  // 선택된 날짜 (TO DO 표시 기준)
+  const [selectedDate, setSelectedDate] = useState(todayKey)
+
+  const [checked, setChecked] = useState<Record<string, boolean>>({})
+  const [customTodos, setCustomTodos] = useState<string[]>([])
+  const [customChecked, setCustomChecked] = useState<Record<string, boolean>>({})
+  const [events, setEvents] = useState<Record<string, string[]>>({})
+  const [completedDates, setCompletedDates] = useState<Record<string, string[]>>({})
+  const [eventModal, setEventModal] = useState(false)
+  const [eventDate, setEventDate] = useState('')
+  const [eventText, setEventText] = useState('')
+
+  // 분위기
+  const vibe = getDashboardVibe()
+
+  useEffect(() => {
+    fetchData()
+    const t = setInterval(() => {
+      const now = new Date()
+      setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`)
+    }, 1000)
+    try {
+      const savedEvents = JSON.parse(localStorage.getItem('cal_events') || '{}')
+      setEvents(savedEvents)
+      const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+      setCompletedDates(savedCompleted)
+      loadTodoForDate(todayKey)
+      // DB에서 캘린더 이벤트 로드 (localStorage보다 우선)
+      supabase.from('calendar_events').select('*').then(({ data }) => {
+        if (data && data.length > 0) {
+          const dbEvents: Record<string, string[]> = {}
+          data.forEach((r: any) => {
+            if (!dbEvents[r.date]) dbEvents[r.date] = []
+            dbEvents[r.date].push(r.label)
+          })
+          setEvents(dbEvents)
+          localStorage.setItem('cal_events', JSON.stringify(dbEvents))
+        }
+      })
+    } catch {}
+
+    return () => clearInterval(t)
+  }, [])
+
+  // kpiPeriod 변경 시 통계 재조회
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kpiPeriod])
+
+  function loadTodoForDate(dateKey: string) {
+    supabase.from('todo_checks').select('*').eq('date', dateKey).then(({ data, error }) => {
+      if (!error && data && data.length > 0) {
+        const newChecked: Record<string, boolean> = {}
+        const newCustom: string[] = []
+        const newCustomChecked: Record<string, boolean> = {}
+        data.forEach((r: any) => {
+          if (r.is_custom) {
+            if (!newCustom.includes(r.todo_key)) newCustom.push(r.todo_key)
+            if (r.checked) newCustomChecked[r.todo_key] = true
+          } else {
+            if (r.checked) newChecked[r.todo_key] = true
+          }
+        })
+        setChecked(newChecked)
+        setCustomTodos(newCustom)
+        setCustomChecked(newCustomChecked)
+      } else {
+        try {
+          const saved = JSON.parse(localStorage.getItem('todo_' + dateKey) || '{}')
+          setChecked(saved)
+          const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos') || '{}')
+          setCustomTodos(savedCustomTodos[dateKey] || [])
+          const savedCustomChecked = JSON.parse(localStorage.getItem('custom_checked_' + dateKey) || '{}')
+          setCustomChecked(savedCustomChecked)
+        } catch {}
+      }
     })
-  }, [staffList, allRecords, year, month])
+  }
 
-  useEffect(() => { fetchAll() }, [])
+  function handleCalendarDateClick(dateStr: string) {
+    setSelectedDate(dateStr)
+    loadTodoForDate(dateStr)
+    // 일정 추가는 상단 버튼으로만 → 날짜 클릭 시 TO DO만 변경
+  }
 
-  async function fetchAll() {
+  const [lowStockItems, setLowStockItems] = useState<any[]>([])
+  const [maintenanceDue, setMaintenanceDue] = useState<any[]>([])
+  const [alarmAlerts, setAlarmAlerts] = useState<any[]>([])
+  const ALARM_THRESHOLD = 10 // 월 알람 임계값
+
+  async function fetchData() {
     setLoading(true)
-    const [s, r] = await Promise.all([
-      supabase.from('worktime_staff').select('*').order('id'),
-      supabase.from('worktime_records').select('*').order('date'),
+
+    // 기간별 시작일 계산
+    let periodStart: string | null = null
+    const now = new Date()
+    if (kpiPeriod === 'today') {
+      periodStart = toLocalDate(now)
+    } else if (kpiPeriod === 'week') {
+      // 이번 주 월요일
+      const d = new Date(now)
+      const day = d.getDay()
+      const diffToMon = day === 0 ? -6 : 1 - day
+      d.setDate(d.getDate() + diffToMon)
+      periodStart = toLocalDate(d)
+    } else if (kpiPeriod === 'month') {
+      periodStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+    } else if (kpiPeriod === '30days') {
+      const d = new Date(now); d.setDate(d.getDate() - 30)
+      periodStart = toLocalDate(d)
+    }
+    // kpiPeriod === 'all' → periodStart = null (필터 없음)
+
+    // 각 테이블 쿼리 — 기간 필터 적용
+    const alarmQ = supabase.from('alarm').select('equipment_no, punch_alarm, weld_alarm, date')
+    const maintQ = supabase.from('maintenance').select('equipment_no, maintenance_date')
+    const scratchQ = supabase.from('scratch').select('id, date')
+    if (periodStart) {
+      alarmQ.gte('date', periodStart)
+      maintQ.gte('maintenance_date', periodStart)
+      scratchQ.gte('date', periodStart)
+    }
+
+    const [eq, al, mn, sc, mat] = await Promise.all([
+      supabase.from('equipment').select('*'),
+      alarmQ,
+      maintQ,
+      scratchQ,
+      supabase.from('materials').select('*'),
     ])
-    setStaffList(s.data || [])
-    setAllRecords(r.data || [])
+    const eqData = eq.data || []
+    setStats({
+      equipment: eqData.length,
+      alarm: (al.data||[]).filter((r:any)=>(r.punch_alarm||0)+(r.weld_alarm||0)>0).length,
+      maintenance: mn.data?.length||0,
+      scratch: sc.data?.length||0,
+    })
+    const byType: any = {}
+    eqData.forEach((e:any) => { byType[e.type]=(byType[e.type]||0)+1 })
+    setEquipByType(byType)
+    // 자재 부족
+    const lowStock = (mat.data||[]).filter((r:any) => (r.min_quantity||0) > 0 && r.quantity <= r.min_quantity)
+    setLowStockItems(lowStock)
+
+    // 정비 주기 분석: 마지막 정비일 + 주기 = 다음 예정일
+    const maintByEq: Record<number, string> = {}
+    ;(mn.data||[]).forEach((m: any) => {
+      const mdate = m.maintenance_date
+      if (!mdate) return
+      if (!maintByEq[m.equipment_no] || mdate > maintByEq[m.equipment_no]) {
+        maintByEq[m.equipment_no] = mdate
+      }
+    })
+    const dueList: any[] = []
+    eqData.forEach((eq: any) => {
+      const cycle = eq.maintenance_cycle_days || 30
+      const lastMaint = maintByEq[eq.no]
+      if (!lastMaint) return // 정비 이력 없으면 스킵
+      const lastDate = new Date(lastMaint)
+      const nextDate = new Date(lastDate)
+      nextDate.setDate(nextDate.getDate() + cycle)
+      const daysLeft = Math.floor((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysLeft <= 7) { // 7일 이내 또는 지난 것
+        dueList.push({
+          equipment_no: eq.no,
+          equipment_name: eq.name,
+          last_maintenance: lastMaint,
+          next_due: nextDate.toISOString().slice(0, 10),
+          days_left: daysLeft,
+          cycle,
+        })
+      }
+    })
+    dueList.sort((a, b) => a.days_left - b.days_left)
+    setMaintenanceDue(dueList)
+
+    // 알람 임계값: 설비별 월간 알람 합계
+    const alarmByEq: Record<number, number> = {}
+    ;(al.data||[]).forEach((a: any) => {
+      const total = (a.punch_alarm||0) + (a.weld_alarm||0)
+      alarmByEq[a.equipment_no] = (alarmByEq[a.equipment_no]||0) + total
+    })
+    const alerts = Object.entries(alarmByEq)
+      .filter(([_, count]) => (count as number) >= ALARM_THRESHOLD)
+      .map(([eqNo, count]) => {
+        const eq = eqData.find((e:any) => e.no === Number(eqNo))
+        return { equipment_no: Number(eqNo), equipment_name: eq?.name || '', count: count as number }
+      })
+      .sort((a, b) => b.count - a.count)
+    setAlarmAlerts(alerts)
+
     setLoading(false)
   }
 
-  const weekRecords = useMemo(() =>
-    allRecords.filter(r => r.date >= weekStart && r.date <= weekEnd),
-    [allRecords, weekStart, weekEnd]
-  )
+  function toggleTodo(item: typeof DAILY_TODOS[0]) {
+    if (selectedDate !== todayKey) return
+    const next = { ...checked, [item.key]: !checked[item.key] }
+    setChecked(next)
+    localStorage.setItem('todo_' + todayKey, JSON.stringify(next))
+    // DB에 upsert
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: item.key, is_custom: false, checked: !checked[item.key], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    updateCompleted(item.label, !checked[item.key], todayKey)
+    if (item.key === '아이마킹' && !checked[item.key]) {
+      const eqNo = getImarkingSchedule(today)
+      if (eqNo>0) supabase.from('imarking').insert([{ equipment_no:eqNo, change_date:todayKey, category:'점검', mode:'아이마킹', unit:'점검완료', value:1, note:'Daily TO DO 체크' }]).then(()=>{})
+    }
+  }
 
-  const staffStats = useMemo(() => {
-    return staffList.map(s => {
-      const recs = weekRecords.filter(r => r.staff_name === s.name)
-      const pred = predictWeeklyHours(allRecords.filter(r => r.staff_name === s.name), weekStart, weekEnd)
-      return { staff: s, records: recs, ...pred }
+  function toggleCustomTodo(label: string) {
+    if (selectedDate !== todayKey) return
+    const next = { ...customChecked, [label]: !customChecked[label] }
+    setCustomChecked(next)
+    localStorage.setItem('custom_checked_' + todayKey, JSON.stringify(next))
+    supabase.from('todo_checks').upsert({ date: todayKey, todo_key: label, is_custom: true, checked: !customChecked[label], updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    updateCompleted(label, !customChecked[label], todayKey)
+  }
+
+  function updateCompleted(label: string, isDone: boolean, dateKey: string) {
+    const savedCompleted = JSON.parse(localStorage.getItem('cal_completed') || '{}')
+    const dayCompleted: string[] = [...(savedCompleted[dateKey]||[])]
+    if (isDone) { if (!dayCompleted.includes(label)) dayCompleted.push(label) }
+    else { const idx=dayCompleted.indexOf(label); if (idx>-1) dayCompleted.splice(idx,1) }
+    const nextCompleted = { ...savedCompleted, [dateKey]: dayCompleted }
+    setCompletedDates(nextCompleted)
+    localStorage.setItem('cal_completed', JSON.stringify(nextCompleted))
+  }
+
+  function addEvent() {
+    if (!eventDate||!eventText.trim()) return
+    const trimmed = eventText.trim()
+    const next = { ...events, [eventDate]: [...(events[eventDate]||[]), trimmed] }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+    // DB에 이벤트 저장
+    supabase.from('calendar_events').insert([{ date: eventDate, label: trimmed }]).then(() => {})
+    // 커스텀 TODO도 등록
+    supabase.from('todo_checks').upsert({ date: eventDate, todo_key: trimmed, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    const savedCustomTodos = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const dayTodos: string[] = savedCustomTodos[eventDate]||[]
+    if (!dayTodos.includes(trimmed)) dayTodos.push(trimmed)
+    const nextCustom = { ...savedCustomTodos, [eventDate]: dayTodos }
+    localStorage.setItem('cal_custom_todos', JSON.stringify(nextCustom))
+    if (eventDate===selectedDate) setCustomTodos(dayTodos)
+    setEventModal(false)
+    setEventText('')
+  }
+
+  function removeEvent(date: string, idx: number) {
+    const arr = [...(events[date]||[])]
+    const removed = arr[idx]
+    arr.splice(idx,1)
+    const next = { ...events, [date]: arr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const dt: string[] = sc[date]||[]
+    const ti = dt.indexOf(removed)
+    if (ti>-1) dt.splice(ti,1)
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
+    if (date===selectedDate) setCustomTodos(dt)
+    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const dc: string[] = cp[date]||[]
+    const ci = dc.indexOf(removed)
+    if (ci>-1) dc.splice(ci,1)
+    const nc = { ...cp, [date]: dc }
+    setCompletedDates(nc)
+    localStorage.setItem('cal_completed', JSON.stringify(nc))
+  }
+
+  // 드래그 앤 드롭: 일정을 다른 날짜로 이동
+  const [dragItem, setDragItem] = useState<{date:string,idx:number,label:string}|null>(null)
+  const [dragOverDate, setDragOverDate] = useState<string|null>(null)
+  const [editEvent, setEditEvent] = useState<{date:string,idx:number,label:string}|null>(null)
+  const [editEventText, setEditEventText] = useState('')
+
+  function openEditEvent(date: string, idx: number, label: string) {
+    setEditEvent({ date, idx, label })
+    setEditEventText(label)
+  }
+
+  function saveEditEvent() {
+    if (!editEvent || !editEventText.trim()) return
+    const { date, idx, label: oldLabel } = editEvent
+    const newLabel = editEventText.trim()
+    if (newLabel === oldLabel) { setEditEvent(null); return }
+
+    // events 업데이트
+    const arr = [...(events[date]||[])]
+    arr[idx] = newLabel
+    const next = { ...events, [date]: arr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+
+    // custom_todos 업데이트
+    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const dt: string[] = sc[date]||[]
+    const ti = dt.indexOf(oldLabel)
+    if (ti>-1) dt[ti] = newLabel
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [date]: dt }))
+    if (date===selectedDate) setCustomTodos(dt)
+
+    // completed 업데이트
+    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const dc: string[] = cp[date]||[]
+    const ci = dc.indexOf(oldLabel)
+    if (ci>-1) dc[ci] = newLabel
+    setCompletedDates({ ...cp, [date]: dc })
+    localStorage.setItem('cal_completed', JSON.stringify({ ...cp, [date]: dc }))
+
+    // DB 동기화
+    supabase.from('calendar_events').update({ label: newLabel }).eq('date', date).eq('label', oldLabel).then(() => {})
+    supabase.from('todo_checks').update({ todo_key: newLabel, updated_at: new Date().toISOString() }).eq('date', date).eq('todo_key', oldLabel).then(() => {})
+
+    setEditEvent(null)
+  }
+
+  // 일정 이동 헬퍼: N일 만큼 이동 (음수=과거)
+  function shiftEvent(days: number) {
+    if (!editEvent) return
+    const d = new Date(editEvent.date)
+    d.setDate(d.getDate() + days)
+    const newDate = toLocalDate(d)
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    // 캘린더가 다른 달이면 해당 달로 전환
+    if (d.getMonth() !== calMonth || d.getFullYear() !== calYear) {
+      setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+    }
+  }
+
+  // 일정 이동 헬퍼: N개월 만큼 이동
+  function shiftEventMonth(months: number) {
+    if (!editEvent) return
+    const d = new Date(editEvent.date)
+    const originalDay = d.getDate()
+    d.setMonth(d.getMonth() + months)
+    if (d.getDate() !== originalDay) d.setDate(0)
+    const newDate = toLocalDate(d)
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+  }
+
+  // 일정 이동 헬퍼: 특정 날짜로 이동
+  function moveEventToDate(newDate: string) {
+    if (!editEvent || !newDate || newDate === editEvent.date) return
+    moveEvent(editEvent.date, editEvent.idx, newDate)
+    setEditEvent({ ...editEvent, date: newDate })
+    const d = new Date(newDate)
+    setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+  }
+
+  function moveEvent(fromDate: string, idx: number, toDate: string) {
+    if (fromDate === toDate) return
+    const fromArr = [...(events[fromDate]||[])]
+    const label = fromArr[idx]
+    if (!label) return
+    fromArr.splice(idx, 1)
+    const toArr = [...(events[toDate]||[]), label]
+    const next = { ...events, [fromDate]: fromArr, [toDate]: toArr }
+    setEvents(next)
+    localStorage.setItem('cal_events', JSON.stringify(next))
+
+    // custom_todos도 이동
+    const sc = JSON.parse(localStorage.getItem('cal_custom_todos')||'{}')
+    const fromTodos: string[] = sc[fromDate]||[]
+    const fi = fromTodos.indexOf(label)
+    if (fi>-1) fromTodos.splice(fi,1)
+    const toTodos: string[] = sc[toDate]||[]
+    if (!toTodos.includes(label)) toTodos.push(label)
+    localStorage.setItem('cal_custom_todos', JSON.stringify({ ...sc, [fromDate]: fromTodos, [toDate]: toTodos }))
+
+    // completed도 이동
+    const cp = JSON.parse(localStorage.getItem('cal_completed')||'{}')
+    const fromComp: string[] = cp[fromDate]||[]
+    const ci = fromComp.indexOf(label)
+    if (ci>-1) {
+      fromComp.splice(ci,1)
+      const toComp: string[] = cp[toDate]||[]
+      if (!toComp.includes(label)) toComp.push(label)
+      const nc = { ...cp, [fromDate]: fromComp, [toDate]: toComp }
+      setCompletedDates(nc)
+      localStorage.setItem('cal_completed', JSON.stringify(nc))
+    }
+
+    // DB 동기화
+    supabase.from('calendar_events').delete().eq('date', fromDate).eq('label', label).then(() => {
+      supabase.from('calendar_events').insert([{ date: toDate, label }]).then(() => {})
     })
-  }, [staffList, weekRecords, allRecords, weekStart, weekEnd])
+    supabase.from('todo_checks').delete().eq('date', fromDate).eq('todo_key', label).then(() => {
+      supabase.from('todo_checks').upsert({ date: toDate, todo_key: label, is_custom: true, checked: false, updated_at: new Date().toISOString() }, { onConflict: 'date,todo_key' }).then(() => {})
+    })
 
-  // 상태 카운트
-  const statusCounts = useMemo(() => {
-    const over = staffStats.filter(s => s.status === 'over').length
-    const warning = staffStats.filter(s => s.status === 'warning').length
-    const normal = staffStats.filter(s => s.status === 'normal').length
-    return { over, warning, normal }
-  }, [staffStats])
-
-  // 잔업시간(분) 저장 — 관리자 수동 입력
-  async function saveOvertime(staffName: string, date: string, minutes: number) {
-    const safe = Math.max(0, Math.round(minutes / 10) * 10) // 10분 단위 보정
-    const { error } = await supabase
-      .from('worktime_records')
-      .update({ overtime_minutes: safe })
-      .eq('staff_name', staffName)
-      .eq('date', date)
-    if (error) { showToast('잔업 저장 실패', 'error'); return }
-    showToast('잔업시간 저장됨')
-    logAudit(getCurrentUserName(), 'UPDATE', 'worktime_records', `${staffName} ${date} 잔업 ${safe}분`)
-    fetchAll()
+    if (selectedDate === fromDate) setCustomTodos(fromTodos)
+    if (selectedDate === toDate) setCustomTodos(toTodos)
   }
 
-  function changeWeek(direction: -1 | 0 | 1) {
-    setExpandedStaff(null)
-    if (direction === 0) {
-      setWeekStart(thisWeekStart)
-      setWeekEnd(thisWeekEnd)
-      return
+  const calendarData = useMemo(() => {
+    const firstDay = new Date(calYear, calMonth, 1)
+    const lastDay = new Date(calYear, calMonth+1, 0)
+    const cells: Array<{ date: Date|null; dateStr?: string; isToday?: boolean; isWeekend?: boolean; isFriday?: boolean; wd?: number; imarkingEq?: number } | null> = []
+    for (let i=0;i<firstDay.getDay();i++) cells.push(null)
+    for (let d=1;d<=lastDay.getDate();d++) {
+      const date = new Date(calYear, calMonth, d)
+      const dateStr = toLocalDate(date)
+      const wd = date.getDay()
+      cells.push({
+        date,
+        dateStr,
+        isToday: dateStr === todayKey,
+        isWeekend: wd === 0 || wd === 6,
+        isFriday: wd === 5,
+        wd,
+        imarkingEq: getImarkingSchedule(date),
+      })
     }
-    const start = new Date(weekStart)
-    start.setDate(start.getDate() + 7 * direction)
-    const { weekStart: ws, weekEnd: we } = getWeekRange(start)
-    setWeekStart(ws)
-    setWeekEnd(we)
+    return cells
+  }, [calYear, calMonth, todayKey])
+
+  const cells = calendarData
+
+  const isToday = selectedDate === todayKey
+  const selectedDateObj = new Date(selectedDate+'T12:00:00')
+  const isSelectedFriday = selectedDateObj.getDay() === 5
+  const isSelectedWedThuFri = [3, 4, 5].includes(selectedDateObj.getDay()) // 수(3), 목(4), 금(5)
+  // 격주 금요일 판별: ISO 주차 기준 짝수 주
+  const isBiweekFriday = (() => {
+    if (!isSelectedFriday) return false
+    const jan1 = new Date(selectedDateObj.getFullYear(), 0, 1)
+    const days = Math.floor((selectedDateObj.getTime() - jan1.getTime()) / 86400000)
+    const weekNum = Math.ceil((days + jan1.getDay() + 1) / 7)
+    return weekNum % 2 === 0
+  })()
+  const fridayTodo = { key: '주간보고서', label: '주간 보고서', regular: false }
+  const worktimeTodo = { key: 'worktime갱신', label: 'Worktime 갱신 (ERP 업로드)', regular: true }
+  const backupTodo = { key: '격주백업', label: '데이터 백업 확인 (자동 격주)', regular: true }
+  const allTodos = [
+    ...DAILY_TODOS,
+    ...(isSelectedWedThuFri ? [worktimeTodo] : []),
+    ...(isSelectedFriday ? [fridayTodo] : []),
+    ...(isBiweekFriday ? [backupTodo] : []),
+  ]
+  const doneCount = allTodos.filter(t=>checked[t.key]).length + customTodos.filter(t=>customChecked[t]).length
+  const totalCount = allTodos.length + customTodos.length
+  const selectedImarking = getImarkingSchedule(selectedDateObj)
+
+  const periodLabelMap: Record<KpiPeriod, string> = {
+    today: '오늘',
+    week: '이번 주',
+    month: '이번 달',
+    '30days': '최근 30일',
+    all: '전체',
   }
+  const pLabel = periodLabelMap[kpiPeriod]
 
-  function handleFilesSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const list = Array.from(e.target.files || [])
-    if (list.length === 0) return
-    setFiles(list)
-  }
-
-  async function handleUpload() {
-    if (files.length === 0) { showToast('파일을 선택해주세요', 'error'); return }
-    setUploading(true)
-    let totalSaved = 0
-    let errors: string[] = []
-
-    for (const file of files) {
-      try {
-        const records = await parseErpExcel(file, year, month)
-        if (records.length === 0) {
-          errors.push(`${file.name}: 데이터 없음`)
-          continue
-        }
-        // 잔업(overtime_minutes)은 관리자 수동 입력값이므로 ERP 재업로드 시 덮어쓰지 않음
-        const recordsNoOvertime = records.map(({ overtime_minutes, ...rest }) => rest)
-        const { error } = await supabase
-          .from('worktime_records')
-          .upsert(recordsNoOvertime, { onConflict: 'staff_name,date' })
-        if (error) {
-          errors.push(`${file.name}: ${error.message}`)
-        } else {
-          totalSaved += records.length
-        }
-      } catch (e: any) {
-        errors.push(`${file.name}: ${e.message}`)
-      }
-    }
-
-    if (totalSaved > 0) {
-      showToast(`${totalSaved}건 저장 완료${errors.length > 0 ? ' (일부 오류)' : ''}`)
-      logAudit(getCurrentUserName(), 'CREATE', 'worktime_records', `근무시간 ${totalSaved}건 등록`)
-      setUploadModal(false)
-      setFiles([])
-      fetchAll()
-    }
-    if (errors.length > 0) {
-      alert(`처리 중 오류:\n${errors.join('\n')}`)
-    }
-    setUploading(false)
-  }
-
-  function getStatusInfo(status: string, currentTotal: number, predictedTotal: number) {
-    if (status === 'over') {
-      const alreadyOver = currentTotal >= 64
-      return {
-        color: 'var(--accent-red)',
-        bg: 'var(--accent-red-dim)',
-        label: alreadyOver ? '위험 · 초과' : '위험',
-        icon: '🔥',
-      }
-    }
-    if (status === 'warning') {
-      return {
-        color: 'var(--accent-amber)',
-        bg: 'var(--accent-amber-dim)',
-        label: '주의',
-        icon: '⚠',
-      }
-    }
-    return {
-      color: 'var(--accent-green)',
-      bg: 'var(--accent-green-dim, rgba(34,197,94,0.1))',
-      label: '정상',
-      icon: '✓',
-    }
-  }
-
-  const dayLabels = ['월', '화', '수', '목', '금', '토', '일']
-  const weekDates = useMemo(() => {
-    const dates: string[] = []
-    const d = new Date(weekStart)
-    for (let i = 0; i < 7; i++) {
-      const x = new Date(d)
-      x.setDate(d.getDate() + i)
-      dates.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`)
-    }
-    return dates
-  }, [weekStart])
+  const kpiCards = [
+    { label: '관리 설비', value: stats.equipment, unit: '대', color: 'var(--accent-blue)', icon: '🏭' },
+    { label: `${pLabel} 알람`, value: stats.alarm, unit: '건', color: 'var(--accent-amber)', icon: '🔔', warn: stats.alarm >= 20 },
+    { label: `${pLabel} 정비이력`, value: stats.maintenance, unit: '건', color: 'var(--accent-teal)', icon: '🔧' },
+    { label: `${pLabel} 찍힘`, value: stats.scratch, unit: '건', color: 'var(--accent-green)', icon: '🔍' },
+    { label: '정비 예정 (7일)', value: maintenanceDue.length, unit: '대', color: maintenanceDue.length > 0 ? 'var(--accent-blue)' : 'var(--accent-teal)', icon: '📅', warn: maintenanceDue.length > 0 },
+    { label: '자재 부족', value: lowStockItems.length, unit: '건', color: lowStockItems.length > 0 ? 'var(--accent-red)' : 'var(--accent-green)', icon: '📦', warn: lowStockItems.length > 0 },
+  ]
 
   return (
     <div className="page-container">
+
       <Sidebar />
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>Worktime</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>보전반 근무시간 관리 · 주 52h 주의 / 64h 한도</div>
+            <div style={{ fontSize:17, fontWeight:700 }}>Dashboard</div>
+            <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>후가공설비 관리 현황</div>
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: 3, gap: 3 }}>
-              <button className={`btn btn-sm ${viewMode === 'weekly' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('weekly')}>주간</button>
-              <button className={`btn btn-sm ${viewMode === 'monthly' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('monthly')}>월간 누적</button>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={() => setUploadModal(true)}>+ ERP 파일 업로드</button>
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:11, color:'var(--text-muted)', background:'var(--bg-card)', padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)' }}>{clock}</div>
+            <button className="btn btn-primary btn-sm" onClick={() => { setEventDate(todayKey); setEventModal(true) }}>+ 일정 추가</button>
+            <button
+              className="btn btn-ghost"
+              onClick={fetchData}
+              disabled={loading}
+              title="새로고침"
+              style={{
+                opacity: loading ? 0.5 : 1,
+                cursor: loading ? 'wait' : 'pointer',
+                display: 'inline-block',
+                animation: loading ? 'spin 0.8s linear infinite' : 'none',
+              }}
+            >↻</button>
+          </div>
+        </div>
+
+        {/* MZ 바이브 배너 (항상 표시) */}
+        <div style={{ background:vibe.gradient, borderBottom:`1px solid ${vibe.borderColor}`, padding:'12px 28px', display:'flex', alignItems:'center', gap:12, position:'relative', overflow:'hidden' }}>
+          <div style={{ fontSize:24 }}>{vibe.emoji}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:vibe.titleColor }}>{vibe.title}</div>
+            <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>{vibe.subtitle}</div>
           </div>
         </div>
 
         <div className="content-area">
-          {/* 월간 누적 뷰 */}
-          {viewMode === 'monthly' && (
-            <div>
-              <div className="card" style={{ padding: '14px 18px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{year}년 {month}월 누적 근무시간</span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(year, month - 2); setYear(d.getFullYear()); setMonth(d.getMonth() + 1) }}>◀</button>
-                  <span style={{ fontSize: 12, padding: '4px 8px' }}>{month}월</span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(year, month); setYear(d.getFullYear()); setMonth(d.getMonth() + 1) }}>▶</button>
+          {/* KPI 기간 필터 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>기간:</span>
+            <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', padding: 3, borderRadius: 6, border: '1px solid var(--border)' }}>
+              {[
+                { key: 'today' as const, label: '오늘' },
+                { key: 'week' as const, label: '이번 주' },
+                { key: 'month' as const, label: '이번 달' },
+                { key: '30days' as const, label: '최근 30일' },
+                { key: 'all' as const, label: '전체' },
+              ].map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setKpiPeriod(opt.key)}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: kpiPeriod === opt.key ? 'var(--accent-blue)' : 'transparent',
+                    color: kpiPeriod === opt.key ? 'white' : 'var(--text-secondary)',
+                    fontWeight: kpiPeriod === opt.key ? 600 : 400,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:16 }}>
+            {kpiCards.map((k: any) => (
+              <div key={k.label} className="card kpi-card" style={{ padding:'16px 18px', ['--accent-color' as any]: k.color, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div style={{ fontSize:12, color:'var(--text-muted)', fontWeight: 600 }}>{k.label}</div>
+                  <span style={{ fontSize: 20, opacity: 0.8 }}>{k.icon}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 28, fontWeight: 700, color: k.color }}>{loading?'-':k.value}</span>
+                  <span style={{ fontSize: 12, color:'var(--text-muted)' }}>{k.unit}</span>
+                  {k.warn && <span style={{ fontSize: 10, color: 'var(--accent-red)', marginLeft: 'auto', fontWeight: 700 }}>● 주의</span>}
                 </div>
               </div>
-              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>{['이름', '근무일수', '기본(h)', '잔업(h)', '합계(h)', '52h 초과'].map(h => <th key={h} className="tbl-th">{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {monthlyStats.map(s => (
-                      <tr key={s.name} style={{ background: s.over52 > 0 ? 'var(--accent-red-dim)' : undefined }}>
-                        <td className="tbl-td" style={{ fontWeight: 600 }}>{s.name}</td>
-                        <td className="tbl-td">{s.daysWorked}일</td>
-                        <td className="tbl-td">{s.baseTotal}h</td>
-                        <td className="tbl-td" style={{ color: s.otTotal > 0 ? 'var(--accent-amber)' : undefined }}>{s.otTotal > 0 ? `+${s.otTotal}h` : '-'}</td>
-                        <td className="tbl-td" style={{ fontWeight: 700, fontSize: 14, color: s.total >= 52 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{s.total}h</td>
-                        <td className="tbl-td" style={{ color: s.over52 > 0 ? 'var(--accent-red)' : 'var(--text-muted)' }}>{s.over52 > 0 ? `+${s.over52}h` : '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* 주간 뷰 */}
-          {viewMode === 'weekly' && <>
-          {/* 상단 요약 바 */}
-          <div className="card" style={{
-            padding: '14px 20px',
-            marginBottom: 12,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            border: '0.5px solid var(--border)',
-            borderRadius: 10,
-            flexWrap: 'wrap',
-            gap: 8,
-          }}>
-            <div style={{ display: 'flex', gap: 22, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 700 }}>이번 주 상태</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-red)' }}></span>
-                위험 <strong style={{ color: 'var(--accent-red)', fontSize: 15 }}>{statusCounts.over}명</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-amber)' }}></span>
-                주의 <strong style={{ color: 'var(--accent-amber)', fontSize: 15 }}>{statusCounts.warning}명</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-green)' }}></span>
-                정상 <strong style={{ color: 'var(--accent-green)', fontSize: 15 }}>{statusCounts.normal}명</strong>
-              </span>
-            </div>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>총 {staffStats.length}명 보전반</span>
+            ))}
           </div>
 
-          {/* 주차 선택 */}
-          <div className="card" style={{
-            padding: '12px 16px',
-            marginBottom: 14,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 8,
-            border: '0.5px solid var(--border)',
-            borderRadius: 10,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(-1)}>◀ 이전</button>
-              <div style={{ padding: '6px 14px', background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)' }}>
-                {weekStart} ~ {weekEnd}
-                {weekStart === thisWeekStart && <span style={{ marginLeft: 8, fontSize: 10, background: 'var(--accent-blue)', color: 'white', padding: '1px 6px', borderRadius: 4 }}>이번 주</span>}
-              </div>
-              <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(1)}>다음 ▶</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => changeWeek(0)}>이번 주</button>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              💡 카드 클릭 시 일별 상세 표시
-            </div>
-          </div>
-
-          {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>로딩 중...</div>
-          ) : (
-            <>
-              {/* 4명 원형 게이지 카드 */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 14 }}>
-                {staffStats.map(({ staff, currentTotal, daysWorked, daysRemaining, avgPerDay, predictedTotal, status }) => {
-                  const info = getStatusInfo(status, currentTotal, predictedTotal)
-                  const isExpanded = expandedStaff === staff.name
-                  const recommendedHours = daysRemaining > 0 ? Math.max(0, (64 - currentTotal) / daysRemaining) : 0
-
-                  return (
-                    <div key={staff.name}>
-                      <div
-                        className="card"
-                        style={{
-                          padding: 18,
-                          cursor: 'pointer',
-                          border: `0.5px solid ${isExpanded ? info.color : 'var(--border)'}`,
-                          borderLeft: `4px solid ${info.color}`,
-                          borderRadius: 10,
-                          transition: 'all 0.15s ease',
-                          background: isExpanded ? info.bg : 'var(--bg-card)',
-                          position: 'relative',
-                        }}
-                        onClick={() => setExpandedStaff(isExpanded ? null : staff.name)}
-                        onMouseEnter={(e) => {
-                          if (!isExpanded) {
-                            (e.currentTarget as HTMLElement).style.borderColor = info.color
-                            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isExpanded) {
-                            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
-                            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-card)'
-                          }
-                        }}
-                      >
-                        {/* 헤더: 이름 + 반 배지 + 상태 */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                            <span style={{ fontSize: 17, fontWeight: 700 }}>{staff.name}</span>
-                            <span style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: '3px 8px',
-                              borderRadius: 5,
-                              background: staff.team === 'B반' ? 'var(--accent-blue-dim)' : 'var(--accent-purple-dim, rgba(139, 92, 246, 0.15))',
-                              color: staff.team === 'B반' ? 'var(--accent-blue)' : 'var(--accent-purple)',
-                              letterSpacing: 0.3,
-                            }}>
-                              {staff.team}
-                            </span>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{staff.shift_pattern}</span>
-                          </div>
-                          <span style={{ fontSize: 13, color: info.color, fontWeight: 700 }}>● {info.label}</span>
-                        </div>
-
-                        {/* 본체: 게이지 + 주말 예상 */}
-                        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 12 }}>
-                          <CircularGauge value={currentTotal} max={64} secondary={52} color={info.color} />
-
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>📅 주말 예상</div>
-                            <div style={{ fontSize: 28, fontWeight: 700, color: info.color, lineHeight: 1 }}>
-                              {predictedTotal.toFixed(1)}<span style={{ fontSize: 14, marginLeft: 2 }}>h</span>
-                            </div>
-                            <div style={{ fontSize: 12, color: info.color, marginTop: 6, fontWeight: 600 }}>
-                              {status === 'over' ? (
-                                currentTotal >= 64 ? '한도 초과 ⚠' : `+${(predictedTotal - 64).toFixed(1)}h 초과`
-                              ) : status === 'warning' ? (
-                                currentTotal >= 52 ? '52h 초과 중' : `52h까지 +${(predictedTotal - 52).toFixed(1)}h`
-                              ) : '정상 페이스'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 듀얼 임계값 진행바 (52h / 64h 모두 표시) */}
-                        <div style={{ marginBottom: 12 }}>
-                          <div style={{ position: 'relative', height: 14, marginBottom: 4 }}>
-                            {/* 트랙 */}
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: 4, height: 6, background: 'var(--bg-hover)', borderRadius: 3 }}></div>
-                            {/* 현재 진행 */}
-                            <div style={{ position: 'absolute', left: 0, top: 4, height: 6, width: `${Math.min((currentTotal / 64) * 100, 100)}%`, background: info.color, borderRadius: 3, transition: 'width 0.3s' }}></div>
-                            {/* 52h 마커 */}
-                            <div style={{ position: 'absolute', left: '81.25%', top: 0, bottom: 0, width: 2, background: 'var(--accent-amber)', borderRadius: 1 }}></div>
-                            {/* 64h 마커 */}
-                            <div style={{ position: 'absolute', left: '100%', top: 0, bottom: 0, width: 2, background: 'var(--accent-red)', borderRadius: 1, transform: 'translateX(-2px)' }}></div>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>0h</span>
-                            <span style={{ color: 'var(--accent-amber)', fontWeight: 700, position: 'absolute', left: 'calc(81.25% - 12px)' }}>52h</span>
-                            <span style={{ color: 'var(--accent-red)', fontWeight: 700 }}>64h</span>
-                          </div>
-                        </div>
-
-                        {/* 52h / 64h 듀얼 상태 표시 */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                          {/* 52h 카드 */}
-                          <div style={{
-                            padding: '8px 10px',
-                            borderRadius: 6,
-                            background: predictedTotal >= 52 ? 'var(--accent-amber-dim)' : 'var(--bg-hover)',
-                            border: predictedTotal >= 52 ? '1px solid var(--accent-amber)' : '0.5px solid var(--border)',
-                          }}>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', justifyContent: 'space-between' }}>
-                              <span>52h 주의선</span>
-                              {predictedTotal >= 52 && <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>초과 ⚠</span>}
-                            </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: predictedTotal >= 52 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>
-                              {predictedTotal >= 52 ? (
-                                <>+{(predictedTotal - 52).toFixed(1)}h<span style={{ fontSize: 10, marginLeft: 4, color: 'var(--text-muted)' }}>초과</span></>
-                              ) : (
-                                <>{(52 - predictedTotal).toFixed(1)}h<span style={{ fontSize: 10, marginLeft: 4, color: 'var(--text-muted)' }}>여유</span></>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* 64h 카드 */}
-                          <div style={{
-                            padding: '8px 10px',
-                            borderRadius: 6,
-                            background: predictedTotal >= 64 ? 'var(--accent-red-dim)' : 'var(--bg-hover)',
-                            border: predictedTotal >= 64 ? '1px solid var(--accent-red)' : '0.5px solid var(--border)',
-                          }}>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', justifyContent: 'space-between' }}>
-                              <span>64h 한도선</span>
-                              {predictedTotal >= 64 && <span style={{ color: 'var(--accent-red)', fontWeight: 700 }}>초과 🚨</span>}
-                            </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: predictedTotal >= 64 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-                              {predictedTotal >= 64 ? (
-                                <>+{(predictedTotal - 64).toFixed(1)}h<span style={{ fontSize: 10, marginLeft: 4, color: 'var(--text-muted)' }}>초과</span></>
-                              ) : (
-                                <>{(64 - predictedTotal).toFixed(1)}h<span style={{ fontSize: 10, marginLeft: 4, color: 'var(--text-muted)' }}>여유</span></>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 권고 메시지 */}
-                        {(status === 'over' || status === 'warning') && daysRemaining > 0 && (
-                          <div style={{
-                            background: info.bg,
-                            padding: '9px 12px',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            color: info.color,
-                            marginBottom: 12,
-                            fontWeight: 500,
-                            border: `1px solid ${info.color}`,
-                          }}>
-                            {status === 'over' && currentTotal < 64 ? (
-                              <>💡 64h 한도 준수: 잔여 {daysRemaining}일 일평균 <strong>{recommendedHours.toFixed(1)}h 이하</strong></>
-                            ) : status === 'warning' ? (
-                              <>💡 52h 준수: 잔여 {daysRemaining}일 일평균 <strong>{Math.max(0, (52 - currentTotal) / daysRemaining).toFixed(1)}h 이하</strong></>
-                            ) : (
-                              <>⚠ 이미 64h 한도 초과 · 즉시 조치 필요</>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 통계: 한 줄 */}
-                        <div style={{
-                          display: 'flex',
-                          gap: 18,
-                          paddingTop: 10,
-                          borderTop: '0.5px dashed var(--border)',
-                          fontSize: 12,
-                          color: 'var(--text-secondary)',
-                          alignItems: 'center',
-                        }}>
-                          <div><span style={{ color: 'var(--text-muted)' }}>근무</span> <strong style={{ color: 'var(--text-primary)', fontSize: 13 }}>{daysWorked}일</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>평균</span> <strong style={{ color: 'var(--text-primary)', fontSize: 13 }}>{avgPerDay.toFixed(1)}h</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>잔여</span> <strong style={{ color: daysRemaining > 0 ? 'var(--accent-blue)' : 'var(--text-muted)', fontSize: 13 }}>{daysRemaining}일</strong></div>
-                          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent-blue)', fontWeight: 600 }}>
-                            {isExpanded ? '▲ 닫기' : '▼ 상세'}
-                          </span>
-                        </div>
+          <div style={{ display:'grid', gridTemplateColumns: isAdmin ? '280px 1fr' : '1fr', gap:16 }}>
+            {/* TO DO */}
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              {isAdmin && (
+              <div className="card" style={{ padding:0, overflow:'hidden' }}>
+                <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700 }}>Daily TO DO</div>
+                    <div style={{ fontSize:10, color: selectedDate===todayKey?'var(--accent-blue)':'var(--accent-amber)', marginTop:2 }}>
+                      {selectedDate===todayKey ? '오늘' : selectedDate}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>
+                    <span style={{ color:doneCount===totalCount?'var(--accent-green)':'var(--accent-amber)', fontWeight:600 }}>{doneCount}</span>/{totalCount}
+                  </div>
+                </div>
+                <div style={{ padding:'8px 0' }}>
+                  {allTodos.map(item => (
+                    <div key={item.key} onClick={() => toggleTodo(item)}
+                      style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', cursor: isToday?'pointer':'default', transition:'background 0.15s', opacity: isToday?1:0.7 }}
+                      onMouseEnter={e => isToday && ((e.currentTarget as HTMLElement).style.background='var(--bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='transparent'}
+                    >
+                      <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, border:`2px solid ${checked[item.key]?'var(--accent-green)':'var(--border-light)'}`, background:checked[item.key]?'var(--accent-green)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                        {checked[item.key] && <span style={{ color:'white', fontSize:11, fontWeight:700 }}>✓</span>}
                       </div>
+                      <span style={{ fontSize:12, color:checked[item.key]?'var(--text-muted)':'var(--text-primary)', textDecoration:checked[item.key]?'line-through':'none', transition:'all 0.15s' }}>
+                        {item.label}
+                        {item.key==='아이마킹' && selectedImarking>0 && (
+                          <span style={{ marginLeft:8, fontSize:10, color:'var(--accent-blue)', background:'var(--accent-blue-dim)', padding:'1px 6px', borderRadius:10 }}>#{String(selectedImarking).padStart(2,'0')} 설비</span>
+                        )}
+                        {item.key==='주간보고서' && <span style={{ marginLeft:6, fontSize:9, color:'var(--accent-blue)', background:'var(--accent-blue-dim)', padding:'1px 5px', borderRadius:8 }}>매주 금요일</span>}
+                        {item.regular && <span style={{ marginLeft:6, fontSize:9, color:'var(--text-muted)', background:'var(--bg-hover)', padding:'1px 5px', borderRadius:8 }}>정기</span>}
+                      </span>
+                    </div>
+                  ))}
+                  {customTodos.map(label => (
+                    <div key={label} onClick={() => toggleCustomTodo(label)}
+                      style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', cursor:isToday?'pointer':'default', transition:'background 0.15s', borderTop:'1px solid var(--border)', opacity:isToday?1:0.7 }}
+                      onMouseEnter={e => isToday && ((e.currentTarget as HTMLElement).style.background='var(--bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='transparent'}
+                    >
+                      <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, border:`2px solid ${customChecked[label]?'var(--accent-amber)':'var(--border-light)'}`, background:customChecked[label]?'var(--accent-amber)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                        {customChecked[label] && <span style={{ color:'white', fontSize:11, fontWeight:700 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:12, color:customChecked[label]?'var(--text-muted)':'var(--text-primary)', textDecoration:customChecked[label]?'line-through':'none' }}>
+                        {label}
+                        <span style={{ marginLeft:6, fontSize:9, color:'var(--accent-amber)', background:'var(--accent-amber-dim)', padding:'1px 5px', borderRadius:8 }}>추가</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', background:'var(--bg-hover)' }}>
+                  <div style={{ height:4, borderRadius:4, background:'var(--border)', overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${totalCount>0?(doneCount/totalCount)*100:0}%`, background:doneCount===totalCount&&totalCount>0?'var(--accent-green)':'var(--accent-blue)', borderRadius:4, transition:'width 0.3s' }} />
+                  </div>
+                  {!isToday && <div style={{ fontSize:10, color:'var(--accent-amber)', marginTop:6, textAlign:'center' }}>과거 날짜 — 체크 불가 (읽기 전용)</div>}
+                </div>
+              </div>
+              )}
 
-                      {/* 일별 상세 (펼치기) */}
-                      {isExpanded && (
-                        <div className="card" style={{
-                          padding: 0,
-                          overflow: 'hidden',
-                          marginTop: 4,
-                          border: `0.5px solid ${info.color}`,
-                          borderLeft: `3px solid ${info.color}`,
-                          borderRadius: 10,
-                        }}>
-                          <div style={{
-                            padding: '10px 14px',
-                            borderBottom: `0.5px solid ${info.color}`,
-                            background: info.bg,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: info.color,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}>
-                            <span>📋 {staff.name} · 일별 출퇴근 상세</span>
-                            <span style={{ fontSize: 10, opacity: 0.8 }}>{weekStart} ~ {weekEnd}</span>
-                          </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                            <thead><tr>{['날짜', '요일', '공휴일', '출근', '퇴근', '근무시간', '주/야', '잔업(분)'].map(h => <th key={h} className="tbl-th" style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
-                            <tbody>
-                              {weekDates.map((d, i) => {
-                                const rec = weekRecords.find(r => r.staff_name === staff.name && r.date === d)
-                                const isWeekend = i === 5 || i === 6
-                                return (
-                                  <tr key={d} style={{ background: isWeekend ? 'var(--bg-hover)' : 'transparent', opacity: rec?.work_hours ? 1 : 0.6 }}>
-                                    <td className="tbl-td">{d.slice(5)}</td>
-                                    <td className="tbl-td" style={{ color: isWeekend ? 'var(--accent-red)' : 'inherit' }}>{dayLabels[i]}</td>
-                                    <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
-                                    <td className="tbl-td">{rec?.in_time || '-'}</td>
-                                    <td className="tbl-td">{rec?.out_time || '-'}</td>
-                                    <td className="tbl-td" style={{ fontWeight: 700, color: (rec?.work_hours || 0) >= 11 ? 'var(--accent-red)' : (rec?.work_hours || 0) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
-                                      {rec?.work_hours ? `${(rec.work_hours + (rec.overtime_minutes || 0) / 60).toFixed(1)}h` : '-'}
-                                    </td>
-                                    <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
-                                    <td className="tbl-td">
-                                      {rec?.work_hours ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
-                                          <input
-                                            type="number"
-                                            min={0}
-                                            step={10}
-                                            value={overtimeEdits[`${staff.name}|${d}`] ?? String(rec.overtime_minutes || 0)}
-                                            onChange={e => setOvertimeEdits({ ...overtimeEdits, [`${staff.name}|${d}`]: e.target.value })}
-                                            onBlur={e => {
-                                              const v = Number(e.target.value) || 0
-                                              if (v !== (rec.overtime_minutes || 0)) saveOvertime(staff.name, d, v)
-                                            }}
-                                            style={{ width: 52, fontSize: 11, padding: '2px 4px', textAlign: 'center', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-primary)' }}
-                                          />
-                                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>분</span>
-                                        </div>
-                                      ) : '-'}
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                              {/* 합계 행 */}
-                              <tr style={{ background: 'var(--bg-hover)', fontWeight: 700 }}>
-                                <td className="tbl-td" colSpan={5} style={{ textAlign: 'right' }}>주간 합계</td>
-                                <td className="tbl-td" style={{ fontWeight: 700, color: currentTotal >= 64 ? 'var(--accent-red)' : currentTotal >= 52 ? 'var(--accent-amber)' : 'var(--accent-green)' }}>
-                                  {currentTotal.toFixed(1)}h
-                                </td>
-                                <td className="tbl-td" colSpan={2}>{daysWorked}일 근무</td>
-                              </tr>
-                            </tbody>
-                          </table>
+              <div className="card">
+                <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>설비 유형 분포</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {Object.entries(equipByType).map(([type,cnt]:any) => (
+                    <div key={type} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <div style={{ width:48, fontSize:11, color:'var(--text-secondary)' }}>{type}</div>
+                      <div style={{ flex:1, height:10, background:'var(--bg-hover)', borderRadius:4, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${(cnt/stats.equipment)*100}%`, background:'var(--accent-blue)', borderRadius:4 }} />
+                      </div>
+                      <div style={{ width:20, fontSize:11, fontFamily:'JetBrains Mono, monospace', color:'var(--text-muted)', textAlign:'right' }}>{cnt}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Favorites />
+              {alarmAlerts.length > 0 && (
+                <div className="card" style={{ padding: 14, background: 'var(--accent-amber-dim)', border: '1px solid var(--accent-amber)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-amber)' }}>📊 알람 임계 초과</div>
+                    <span style={{ fontSize: 10, color: 'var(--accent-amber)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10 }}>{ALARM_THRESHOLD}건↑ : {alarmAlerts.length}대</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                    {alarmAlerts.slice(0, 8).map((a: any) => (
+                      <div key={a.equipment_no} style={{ fontSize: 11, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-card)', borderRadius: 4 }}>
+                        <span>#{String(a.equipment_no).padStart(2,'0')} · {a.equipment_name}</span>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent-amber)', fontWeight: 700 }}>{a.count}건</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {maintenanceDue.length > 0 && (
+                <div className="card" style={{
+                  padding: 16,
+                  border: '0.5px solid var(--accent-blue)',
+                  borderLeft: '4px solid var(--accent-blue)',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-blue)' }}>● 정비 예정 알림</div>
+                    <span style={{ fontSize: 11, color: 'white', background: 'var(--accent-blue)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>7일 이내 {maintenanceDue.length}건</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {maintenanceDue.slice(0, 8).map((m: any) => (
+                      <div key={m.equipment_no} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
+                        <span>#{String(m.equipment_no).padStart(2,'0')} · {m.equipment_name}</span>
+                        <span style={{ color: m.days_left < 0 ? 'var(--accent-red)' : 'var(--accent-blue)', fontWeight: 700 }}>
+                          {m.days_left < 0 ? `${Math.abs(m.days_left)}일 경과` : m.days_left === 0 ? '오늘' : `D-${m.days_left}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {lowStockItems.length > 0 && (
+                <div className="card" style={{
+                  padding: 16,
+                  border: '0.5px solid var(--accent-red)',
+                  borderLeft: '4px solid var(--accent-red)',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-red)' }}>● 자재 부족 알림</div>
+                    <span style={{ fontSize: 11, color: 'white', background: 'var(--accent-red)', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>{lowStockItems.length}건</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {lowStockItems.slice(0, 8).map((m: any) => (
+                      <div key={m.id} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-hover)', borderRadius: 6 }}>
+                        <span>#{String(m.equipment_no).padStart(2,'0')} · {m.item_name}</span>
+                        <span style={{ color: 'var(--accent-red)', fontWeight: 700 }}>{m.quantity}/{m.min_quantity}</span>
+                      </div>
+                    ))}
+                    {lowStockItems.length > 8 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>외 {lowStockItems.length - 8}건</div>
+                    )}
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%', marginTop: 10, fontSize: 12 }}
+                    onClick={() => {
+                      const memo = `[자재 부족 발주 요청]\n${lowStockItems.map((m: any) =>
+                        `- #${String(m.equipment_no).padStart(2,'0')} ${m.item_name}${m.spec ? ` (${m.spec})` : ''}${m.maker ? ` · ${m.maker}` : ''} : 현재 ${m.quantity}개 / 최소 ${m.min_quantity}개 → 부족 ${m.min_quantity - m.quantity}개`
+                      ).join('\n')}\n\n총 ${lowStockItems.length}건`
+                      navigator.clipboard.writeText(memo)
+                      alert('발주 메모가 클립보드에 복사되었습니다')
+                    }}
+                  >📋 발주 메모 복사</button>
+                </div>
+              )}
+            </div>
+
+            {/* 달력 */}
+            {isAdmin && (
+            <div className="card" style={{ padding:0, overflow:'hidden' }}>
+              <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ fontSize:13, fontWeight:700 }}>{calYear}년 {calMonth+1}월</div>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { const d=new Date(calYear,calMonth-1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}>‹</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setCalYear(today.getFullYear()); setCalMonth(today.getMonth()); setSelectedDate(todayKey); loadTodoForDate(todayKey) }}>오늘</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { const d=new Date(calYear,calMonth+1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}>›</button>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', borderBottom:'1px solid var(--border)' }}>
+                {['일','월','화','수','목','금','토'].map((d,i) => (
+                  <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11, fontWeight:600, color:i===0?'var(--accent-red)':i===6?'var(--accent-teal)':'var(--text-muted)' }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))' }}>
+                {cells.map((cell,idx) => {
+                  if (!cell) return <div key={idx} style={{ minHeight:110, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }} />
+                  const date = cell.date!
+                  const dateStr = cell.dateStr!
+                  const isToday2 = cell.isToday!
+                  const isSelected = dateStr===selectedDate
+                  const isWeekend = cell.isWeekend!
+                  const isFriday = cell.isFriday!
+                  const imarkingEq = cell.imarkingEq!
+                  const dayEvents = events[dateStr]||[]
+                  const dayCompleted = completedDates[dateStr]||[]
+                  const wd = cell.wd!
+                  return (
+                    <div key={idx}
+                      onClick={() => handleCalendarDateClick(dateStr)}
+                      onDragOver={e => { e.preventDefault(); setDragOverDate(dateStr) }}
+                      onDragLeave={() => setDragOverDate(null)}
+                      onDrop={e => { e.preventDefault(); setDragOverDate(null); if (dragItem) { moveEvent(dragItem.date, dragItem.idx, dateStr); setDragItem(null) } }}
+                      style={{ minHeight:110, minWidth:0, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', padding:'6px', background:dragOverDate===dateStr?'var(--accent-blue-dim)':isSelected?'var(--accent-blue-dim)':isToday2?'rgba(59,126,248,0.05)':'transparent', cursor:'pointer', outline:dragOverDate===dateStr?'2px dashed var(--accent-blue)':isSelected?'2px solid var(--accent-blue)':'none', outlineOffset:'-2px', transition:'all 0.15s' }}
+                    >
+                      <div style={{ marginBottom:4 }}>
+                        <span style={{ fontSize:12, fontWeight:isToday2?700:400, color:isToday2?'white':wd===0?'var(--accent-red)':wd===6?'var(--accent-teal)':'var(--text-primary)', background:isToday2?'var(--accent-blue)':'transparent', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                          {date.getDate()}
+                        </span>
+                      </div>
+                      {isFriday && (
+                        <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('주간 보고서')?'var(--accent-green-dim)':'var(--accent-blue-dim)', color:dayCompleted.includes('주간 보고서')?'var(--accent-green)':'var(--accent-blue)', marginBottom:2, fontWeight:600 }}>
+                          {dayCompleted.includes('주간 보고서')?'✓ ':''}📋 주간 보고서
                         </div>
                       )}
+                      {!isWeekend && imarkingEq>0 && (
+                        <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('아이마킹')?'var(--accent-green-dim)':'var(--accent-teal-dim)', color:dayCompleted.includes('아이마킹')?'var(--accent-green)':'var(--accent-teal)', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                          {dayCompleted.includes('아이마킹')?'✓ ':''}i-Marking #{String(imarkingEq).padStart(2,'00')}
+                        </div>
+                      )}
+                      {!isWeekend && (
+                        <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:REGULAR_TODOS.every(t=>dayCompleted.includes(t))?'var(--accent-green-dim)':'var(--bg-hover)', color:REGULAR_TODOS.every(t=>dayCompleted.includes(t))?'var(--accent-green)':'var(--text-muted)', marginBottom:2 }}>
+                          {REGULAR_TODOS.every(t=>dayCompleted.includes(t))?'✓ 정기업무 완료':'정기업무'}
+                        </div>
+                      )}
+                      {dayEvents.map((ev,i) => {
+                        const isDone = dayCompleted.includes(ev)
+                        return (
+                          <div key={i}
+                            draggable
+                            onDragStart={e => { setDragItem({date:dateStr,idx:i,label:ev}); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',ev) }}
+                            onDragEnd={() => setDragItem(null)}
+                            style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:isDone?'var(--accent-green-dim)':'var(--accent-amber-dim)', color:isDone?'var(--accent-green)':'var(--accent-amber)', marginBottom:2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:2, cursor:'grab', minWidth:0 }}>
+                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer', flex:1 }}
+                              onClick={e => { e.stopPropagation(); openEditEvent(dateStr,i,ev) }}>
+                              {isDone?'✓ ':''}{ev}
+                            </span>
+                            <span style={{ flexShrink:0, opacity:0.6, cursor:'pointer', padding:'0 2px' }}
+                              onClick={e => { e.stopPropagation(); removeEvent(dateStr,i) }}>×</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 })}
               </div>
-
-              {staffStats.every(s => s.currentTotal === 0) && (
-                <div className="empty-state-pro">
-                  <div className="empty-icon">📊</div>
-                  <div className="empty-title">이번 주 근무 데이터가 없습니다</div>
-                  <div className="empty-desc">"+ ERP 파일 업로드"로 데이터를 등록하세요</div>
-                </div>
-              )}
-            </>
-          )}
-          </>}
+              <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', display:'flex', gap:16, fontSize:10, color:'var(--text-muted)', flexWrap:'wrap' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-blue)' }} />주간 보고서 (금)</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-teal)' }} />아이마킹</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--bg-hover)', border:'1px solid var(--border)' }} />정기업무</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-green)' }} />완료</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-amber)' }} />추가 일정 (클릭=수정 · ×=삭제)</div>
+                <div style={{ marginLeft:'auto', fontSize:10, color:'var(--accent-blue)', fontWeight:600 }}>드래그=일정 이동</div>
+              </div>
+            </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {uploadModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && !uploading && setUploadModal(false)}>
-          <div className="modal" style={{ maxWidth: 540 }}>
+      {/* 일정 추가 모달 */}
+      {eventModal && (
+        <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setEventModal(false)}>
+          <div className="modal" style={{ maxWidth:400 }}>
             <div className="modal-header">
-              <div className="modal-title">ERP 파일 업로드</div>
-              <button className="modal-close" onClick={() => !uploading && setUploadModal(false)}>×</button>
+              <div className="modal-title">일정 추가</div>
+              <button className="modal-close" onClick={() => setEventModal(false)}>×</button>
             </div>
-
-            <div style={{ padding: '8px 0' }}>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">연도</label>
-                  <select className="form-select" value={year} onChange={e => setYear(Number(e.target.value))}>
-                    {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}년</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">월</label>
-                  <select className="form-select" value={month} onChange={e => setMonth(Number(e.target.value))}>
-                    {Array.from({length:12}, (_,i)=>i+1).map(m => <option key={m} value={m}>{m}월</option>)}
-                  </select>
-                </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div className="form-group">
+                <label className="form-label">날짜</label>
+                <input className="form-input" type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
               </div>
-
-              <div className="form-group" style={{ marginTop: 12 }}>
-                <label className="form-label">ERP 파일 (.xls / .xlsx / .html) — 4명 한번에 선택</label>
-                <input
-                  type="file"
-                  accept=".xls,.xlsx,.html,.htm"
-                  multiple
-                  onChange={handleFilesSelect}
-                  style={{ fontSize: 12, padding: 8, border: '1px dashed var(--border)', borderRadius: 4, width: '100%' }}
-                />
-              </div>
-
-              {files.length > 0 && (
-                <div style={{ marginTop: 10, padding: 10, background: 'var(--bg-hover)', borderRadius: 6, fontSize: 11 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>선택된 파일 ({files.length}개)</div>
-                  {files.map((f, i) => (
-                    <div key={i} style={{ color: 'var(--text-secondary)', padding: '2px 0' }}>
-                      📄 {f.name} ({(f.size/1024).toFixed(1)} KB)
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ marginTop: 14, padding: 10, background: 'var(--accent-blue-dim)', borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
-                <div style={{ fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 4 }}>💡 처리 안내</div>
-                <div>• 지원 형식: <strong>HTML (권장)</strong>, .xls, .xlsx</div>
-                <div>• 같은 날짜 데이터는 덮어쓰기됩니다</div>
-                <div>• 점심시간 1시간 자동 차감</div>
-                <div>• 출근만 있고 퇴근 없는 경우 미입력 처리</div>
-                <div>• 파일명에 이름이 포함되면 자동 인식 (예: 5월_이동주.html)</div>
+              <div className="form-group">
+                <label className="form-label">내용</label>
+                <input className="form-input" type="text" placeholder="일정 내용 입력..." value={eventText} onChange={e => setEventText(e.target.value)} onKeyDown={e => e.key==='Enter'&&addEvent()} autoFocus />
               </div>
             </div>
-
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setUploadModal(false)} disabled={uploading}>취소</button>
-              <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || files.length === 0}>
-                {uploading ? '처리 중...' : `${files.length}개 파일 업로드`}
-              </button>
+              <button className="btn btn-ghost" onClick={() => setEventModal(false)}>취소</button>
+              <button className="btn btn-primary" onClick={addEvent}>추가</button>
             </div>
           </div>
         </div>
       )}
 
-      <ToastUI />
+      {/* 일정 수정 모달 */}
+      {editEvent && (
+        <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setEditEvent(null)}>
+          <div className="modal" style={{ maxWidth:400 }}>
+            <div className="modal-header">
+              <div className="modal-title">일정 수정</div>
+              <button className="modal-close" onClick={() => setEditEvent(null)}>×</button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div className="form-group">
+                <label className="form-label">날짜</label>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)', padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 6, marginBottom: 8 }}>
+                  📅 {editEvent.date}
+                </div>
+
+                {/* 퀵 이동 버튼 */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, marginBottom: 8 }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(-1)}>◀ 1일 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(1)}>1일 후 ▶</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(-7)}>◀ 1주 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEvent(7)}>1주 후 ▶</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEventMonth(-1)}>◀ 1달 전</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftEventMonth(1)}>1달 후 ▶</button>
+                </div>
+
+                {/* 특정 날짜로 이동 */}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={editEvent.date}
+                    onChange={e => moveEventToDate(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>특정 날짜로 이동</span>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">내용</label>
+                <input className="form-input" type="text" value={editEventText} onChange={e => setEditEventText(e.target.value)} onKeyDown={e => e.key==='Enter'&&saveEditEvent()} autoFocus />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditEvent(null)}>취소</button>
+              <button className="btn btn-danger" onClick={() => { removeEvent(editEvent.date, editEvent.idx); setEditEvent(null) }}>삭제</button>
+              <button className="btn btn-primary" onClick={saveEditEvent}>저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
