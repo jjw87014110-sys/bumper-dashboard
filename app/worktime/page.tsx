@@ -585,31 +585,31 @@ export default function WorktimePage() {
                                 const rec = weekRecords.find(r => r.staff_name === staff.name && r.date === d)
                                 const isWeekend = i === 5 || i === 6
                                 return (
-                                  <tr key={d} style={{ background: isWeekend ? 'var(--bg-hover)' : 'transparent', opacity: rec?.work_hours ? 1 : 0.6 }}>
+                                  <tr key={d} style={{ background: isWeekend ? 'var(--bg-hover)' : 'transparent', opacity: rec?.in_time ? 1 : 0.6 }}>
                                     <td className="tbl-td">{d.slice(5)}</td>
                                     <td className="tbl-td" style={{ color: isWeekend ? 'var(--accent-red)' : 'inherit' }}>{dayLabels[i]}</td>
                                     <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
                                     <td className="tbl-td">{rec?.in_time || '-'}</td>
                                     <td className="tbl-td">{rec?.out_time || '-'}</td>
                                     <td className="tbl-td" style={{ fontWeight: 700, color: (rec?.work_hours || 0) >= 11 ? 'var(--accent-red)' : (rec?.work_hours || 0) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
-                                      {rec?.work_hours ? (
+                                      {rec?.in_time ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                                           <input
                                             type="number"
                                             min={0}
                                             step={0.5}
-                                            value={workHoursEdits[`${staff.name}|${d}`] ?? String(rec.work_hours)}
+                                            value={workHoursEdits[`${staff.name}|${d}`] ?? String(rec.work_hours ?? 0)}
                                             onChange={e => setWorkHoursEdits({ ...workHoursEdits, [`${staff.name}|${d}`]: e.target.value })}
                                             onBlur={e => {
                                               const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 2) / 2)
-                                              if (v !== rec.work_hours) saveWorkHours(staff.name, d, v)
+                                              if (v !== (rec.work_hours ?? 0)) saveWorkHours(staff.name, d, v)
                                             }}
                                             style={{ width: 52, fontSize: 11, padding: '2px 4px', textAlign: 'center', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input)', color: 'inherit', fontWeight: 700 }}
                                           />
                                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>h</span>
                                           {(rec.overtime_minutes || 0) > 0 && (
                                             <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                                              (+{((rec.overtime_minutes || 0) / 60).toFixed(1)}={(rec.work_hours + (rec.overtime_minutes || 0) / 60).toFixed(1)})
+                                              (+{((rec.overtime_minutes || 0) / 60).toFixed(1)}={((rec.work_hours ?? 0) + (rec.overtime_minutes || 0) / 60).toFixed(1)})
                                             </span>
                                           )}
                                         </div>
@@ -617,7 +617,7 @@ export default function WorktimePage() {
                                     </td>
                                     <td className="tbl-td">{rec?.shift_type ? <span className={`badge ${rec.shift_type === '주간' ? 'badge-blue' : 'badge-purple'}`}>{rec.shift_type}</span> : '-'}</td>
                                     <td className="tbl-td">
-                                      {rec?.work_hours ? (
+                                      {rec?.in_time ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                                           <input
                                             type="number"
