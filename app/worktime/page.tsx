@@ -15,6 +15,15 @@ interface Staff {
   emp_no: string
 }
 
+// 출근 기록이 있는데 근무시간이 비어있으면(과거 데이터/공휴일 등) 기본 8시간으로 간주.
+// 출근 기록 자체가 없으면 0. 이미 값이 있으면 그 값을 그대로 사용.
+function effectiveHours(rec?: WorktimeRecord | null): number {
+  if (!rec) return 0
+  if (rec.work_hours && rec.work_hours > 0) return rec.work_hours
+  if (rec.in_time) return 8
+  return 0
+}
+
 // 원형 게이지 컴포넌트
 function CircularGauge({ value, max, secondary, color }: { value: number; max: number; secondary?: number; color: string }) {
   const radius = 48
@@ -82,8 +91,8 @@ export default function WorktimePage() {
     const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
     return staffList.map(s => {
       const recs = allRecords.filter(r => r.staff_name === s.name && r.date >= monthStart && r.date <= monthEnd)
-      const worked = recs.filter(r => (r.work_hours || 0) > 0)
-      const baseTotal = worked.reduce((sum, r) => sum + (r.work_hours || 0), 0)
+      const worked = recs.filter(r => effectiveHours(r) > 0)
+      const baseTotal = worked.reduce((sum, r) => sum + effectiveHours(r), 0)
       const otTotal = worked.reduce((sum, r) => sum + ((r.overtime_minutes || 0) / 60), 0)
       const total = Math.round((baseTotal + otTotal) * 10) / 10
       const over52 = Math.max(0, total - 52)
@@ -591,14 +600,14 @@ export default function WorktimePage() {
                                     <td className="tbl-td">{rec?.is_holiday ? <span className="badge badge-gray">공휴일</span> : ''}</td>
                                     <td className="tbl-td">{rec?.in_time || '-'}</td>
                                     <td className="tbl-td">{rec?.out_time || '-'}</td>
-                                    <td className="tbl-td" style={{ fontWeight: 700, color: (rec?.work_hours || 0) >= 11 ? 'var(--accent-red)' : (rec?.work_hours || 0) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
+                                    <td className="tbl-td" style={{ fontWeight: 700, color: effectiveHours(rec) >= 11 ? 'var(--accent-red)' : effectiveHours(rec) >= 10 ? 'var(--accent-amber)' : 'inherit' }}>
                                       {rec?.in_time ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                                           <input
                                             type="number"
                                             min={0}
                                             step={0.5}
-                                            value={workHoursEdits[`${staff.name}|${d}`] ?? String(rec.work_hours ?? 0)}
+                                            value={workHoursEdits[`${staff.name}|${d}`] ?? String(effectiveHours(rec))}
                                             onChange={e => setWorkHoursEdits({ ...workHoursEdits, [`${staff.name}|${d}`]: e.target.value })}
                                             onBlur={e => {
                                               const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 2) / 2)
@@ -609,7 +618,7 @@ export default function WorktimePage() {
                                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>h</span>
                                           {(rec.overtime_minutes || 0) > 0 && (
                                             <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                                              (+{((rec.overtime_minutes || 0) / 60).toFixed(1)}={((rec.work_hours ?? 0) + (rec.overtime_minutes || 0) / 60).toFixed(1)})
+                                              (+{((rec.overtime_minutes || 0) / 60).toFixed(1)}={(effectiveHours(rec) + (rec.overtime_minutes || 0) / 60).toFixed(1)})
                                             </span>
                                           )}
                                         </div>
