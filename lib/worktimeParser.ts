@@ -279,10 +279,12 @@ export function predictWeeklyHours(
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
 
   const weekRecords = records.filter(r => r.date >= weekStart && r.date <= weekEnd)
-  const workedRecords = weekRecords.filter(r => r.work_hours && r.work_hours > 0 && r.date <= todayStr)
+  // 출근 기록이 있으면 근무시간이 비어있어도(공휴일/과거 데이터) 기본 8시간으로 간주
+  const eff = (r: WorktimeRecord) => (r.work_hours && r.work_hours > 0) ? r.work_hours : (r.in_time ? 8 : 0)
+  const workedRecords = weekRecords.filter(r => eff(r) > 0 && r.date <= todayStr)
 
   // 기본 근무시간(8h 고정) 합계 + 잔업(분→시간) 합계
-  const baseTotal = workedRecords.reduce((sum, r) => sum + (r.work_hours || 0), 0)
+  const baseTotal = workedRecords.reduce((sum, r) => sum + eff(r), 0)
   const overtimeTotal = workedRecords.reduce((sum, r) => sum + ((r.overtime_minutes || 0) / 60), 0)
   const currentTotal = baseTotal + overtimeTotal
   const daysWorked = workedRecords.length
