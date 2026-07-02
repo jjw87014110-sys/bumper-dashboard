@@ -3,15 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
-
-const DAILY_TODOS = [
-  { key: '변동점관리', label: '변동점관리' },
-  { key: '제품융착관리', label: '제품 융착관리' },
-  { key: '찍힘관리', label: '찍힘 관리' },
-  { key: '아이마킹', label: '아이마킹' },
-  { key: '정비이력관리', label: '정비이력 관리' },
-  { key: '알람관리', label: '알람관리' },
-]
+import { DAILY_TODOS } from '@/lib/constants'
 
 function toLocalDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
