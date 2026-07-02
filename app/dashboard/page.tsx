@@ -4,7 +4,7 @@ import { useRequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import Favorites from '@/components/Favorites'
-import { toLocalDate } from '@/lib/constants'
+import { toLocalDate, DAILY_TODOS, REGULAR_TODOS } from '@/lib/constants'
 
 const IMARKING_BASE_DATE = new Date('2026-04-29')
 const IMARKING_BASE_EQ = 1
@@ -155,15 +155,6 @@ function getDashboardVibe(): DashboardVibe {
   }
 }
 
-const DAILY_TODOS = [
-  { key: '변동점관리', label: '변동점관리', regular: true },
-  { key: '제품융착관리', label: '제품 융착관리', regular: true },
-  { key: '찍힘관리', label: '찍힘 관리', regular: true },
-  { key: '아이마킹', label: '아이마킹', regular: false },
-  { key: '정비이력관리', label: '정비이력 관리', regular: true },
-  { key: '알람관리', label: '알람관리', regular: true },
-]
-const REGULAR_TODOS = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
 
 export default function DashboardPage() {
   const { userRole } = useRequireAuth()
