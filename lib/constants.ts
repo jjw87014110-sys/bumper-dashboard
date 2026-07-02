@@ -104,3 +104,25 @@ export function csvEscape(value: any): string {
   }
   return str
 }
+
+// ============================================
+// 일일 정기업무 (Daily TO DO)
+// dashboard / worklog 등에서 공통 사용 — 여기서만 수정
+// ============================================
+export interface DailyTodo {
+  key: string
+  label: string
+  regular: boolean  // true = 매일 반복 정기업무, false = 조건부(아이마킹 등)
+}
+
+export const DAILY_TODOS: DailyTodo[] = [
+  { key: '변동점관리', label: '변동점관리', regular: true },
+  { key: '제품융착관리', label: '제품 융착관리', regular: true },
+  { key: '찍힘관리', label: '찍힘 관리', regular: true },
+  { key: '아이마킹', label: '아이마킹', regular: false },
+  { key: '정비이력관리', label: '정비이력 관리', regular: true },
+  { key: '알람관리', label: '알람관리', regular: true },
+]
+
+// 매일 반복되는 정기업무 라벨 목록
+export const REGULAR_TODOS: string[] = DAILY_TODOS.filter(t => t.regular).map(t => t.label)
