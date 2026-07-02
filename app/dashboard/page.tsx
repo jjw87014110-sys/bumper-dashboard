@@ -617,12 +617,13 @@ export default function DashboardPage() {
     return weekNum % 2 === 0
   })()
   const fridayTodo = { key: '주간보고서', label: '주간 보고서', regular: false }
+  const otCheckTodo = { key: 'OT주말근무확인', label: 'OT·주말근무 확인', regular: false }
   const worktimeTodo = { key: 'worktime갱신', label: 'Worktime 갱신 (ERP 업로드)', regular: true }
   const backupTodo = { key: '격주백업', label: '데이터 백업 확인 (자동 격주)', regular: true }
   const allTodos = [
     ...DAILY_TODOS,
     ...(isSelectedWedThuFri ? [worktimeTodo] : []),
-    ...(isSelectedFriday ? [fridayTodo] : []),
+    ...(isSelectedFriday ? [fridayTodo, otCheckTodo] : []),
     ...(isBiweekFriday ? [backupTodo] : []),
   ]
   const doneCount = allTodos.filter(t=>checked[t.key]).length + customTodos.filter(t=>customChecked[t]).length
@@ -932,6 +933,11 @@ export default function DashboardPage() {
                           {dayCompleted.includes('주간 보고서')?'✓ ':''}📋 주간 보고서
                         </div>
                       )}
+                      {isFriday && (
+                        <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('OT·주말근무 확인')?'var(--accent-green-dim)':'var(--accent-purple-dim)', color:dayCompleted.includes('OT·주말근무 확인')?'var(--accent-green)':'var(--accent-purple)', marginBottom:2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                          {dayCompleted.includes('OT·주말근무 확인')?'✓ ':''}⏱ OT·주말근무 확인
+                        </div>
+                      )}
                       {!isWeekend && imarkingEq>0 && (
                         <div style={{ fontSize:9, padding:'2px 5px', borderRadius:4, background:dayCompleted.includes('아이마킹')?'var(--accent-green-dim)':'var(--accent-teal-dim)', color:dayCompleted.includes('아이마킹')?'var(--accent-green)':'var(--accent-teal)', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                           {dayCompleted.includes('아이마킹')?'✓ ':''}i-Marking #{String(imarkingEq).padStart(2,'00')}
@@ -965,6 +971,7 @@ export default function DashboardPage() {
               </div>
               <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', display:'flex', gap:16, fontSize:10, color:'var(--text-muted)', flexWrap:'wrap' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-blue)' }} />주간 보고서 (금)</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-purple)' }} />OT·주말근무 확인 (금)</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-teal)' }} />아이마킹</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--bg-hover)', border:'1px solid var(--border)' }} />정기업무</div>
                 <div style={{ display:'flex', alignItems:'center', gap:4 }}><div style={{ width:8, height:8, borderRadius:2, background:'var(--accent-green)' }} />완료</div>
